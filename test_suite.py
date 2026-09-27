@@ -177,6 +177,7 @@ def test_frontend_static_serving():
     index_resp = client.get("/")
     assert index_resp.status_code == 200
     assert "CivicGuide AI" in index_resp.text
+    assert "root" in index_resp.text
 
     # GET /static/css/style.css
     css_resp = client.get("/static/css/style.css")
@@ -185,7 +186,18 @@ def test_frontend_static_serving():
     # GET /static/js/app.js
     js_resp = client.get("/static/js/app.js")
     assert js_resp.status_code == 200
-    print("✅ Pure HTML/CSS/JavaScript static assets serving passed")
+
+    # GET React 18 & compiled graphics bundle
+    react_resp = client.get("/static/js/vendor/react.min.js")
+    assert react_resp.status_code == 200
+
+    react_dom_resp = client.get("/static/js/vendor/react-dom.min.js")
+    assert react_dom_resp.status_code == 200
+
+    react_app_resp = client.get("/static/js/react_app.compiled.js")
+    assert react_app_resp.status_code == 200
+    assert "CivicApp" in react_app_resp.text
+    print("✅ Pure HTML/CSS/JavaScript and React graphics assets serving passed")
 
 if __name__ == "__main__":
     print("\n=======================================================")
