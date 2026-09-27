@@ -8,7 +8,7 @@ INITIAL_DEPARTMENTS = [
         "description": "Apex central authority administering the Passports Act 1967 and Passport Rules across India.",
         "country": "India",
         "state": "All-India",
-        "official_portal_url": "https://portal2.passportindia.gov.in",
+        "official_portal_url": "https://www.passportindia.gov.in",
         "contact_helpline": "1800-258-1800"
     },
     {
@@ -68,7 +68,7 @@ INITIAL_DEPARTMENTS = [
         "description": "State revenue administration responsible for statutory income, residence, caste certificates, and land mutation.",
         "country": "India",
         "state": "Telangana",
-        "official_portal_url": "https://tg.meeseva.telangana.gov.in",
+        "official_portal_url": "https://meeseva.telangana.gov.in",
         "contact_helpline": "040-48560012"
     },
     {
@@ -130,7 +130,7 @@ INITIAL_SERVICES = [
         "description": "Official Indian passport application for citizens seeking international travel documentation under the Passports Act 1967. Includes standard 36-page or 60-page booklet under Normal and Tatkaal quotas with biometric capture at Passport Seva Kendra (PSK) or Post Office PSK (POPSK).",
         "short_summary": "Apply for a new 10-year Indian passport or reissue an expired passport with online appointment at PSK.",
         "eligibility_criteria": "Must be a citizen of India by birth, descent, or registration. No pending criminal summons or active warrant in any Indian criminal court.",
-        "official_url": "https://portal2.passportindia.gov.in/AppOnlineProject/welcomeLink",
+        "official_url": "https://www.passportindia.gov.in",
         "fee_structure": "Normal Quota (36 pages): ₹1,500; Normal Quota (60 pages): ₹2,000; Tatkaal Quota (36 pages): ₹3,500; Minors (<18 years): ₹1,000.",
         "processing_time": "Normal: 15-30 working days (post police verification); Tatkaal: 1-3 working days.",
         "application_mode": "HYBRID",
@@ -151,7 +151,7 @@ INITIAL_SERVICES = [
         "description": "Unified national workflow for issuing Motor Vehicle Driving Licences across all RTOs in India via the Sarathi Parivahan portal. Citizens first qualify for an online contactless or in-person Learner Licence (LLR) followed by a mandatory practical driving test at the Regional Transport Office for a Permanent DL.",
         "short_summary": "Apply for Learner Licence online and schedule slot for permanent driving licence test at your RTO.",
         "eligibility_criteria": "Age 16+ for gearless 2-wheelers up to 50cc; Age 18+ for light motor vehicles (cars/motorcycles with gear); Age 20+ for transport/commercial vehicles.",
-        "official_url": "https://parivahan.gov.in/parivahan//en/content/driving-licence-0",
+        "official_url": "https://sarathi.parivahan.gov.in",
         "fee_structure": "Learner Licence: ₹200 (including ₹50 test fee per class); Permanent Driving Licence: ₹700 (including ₹200 DL fee + ₹300 driving test fee + ₹200 smart card fee).",
         "processing_time": "Learner Licence: Same day (online test); Permanent DL: 7-15 days after passing RTO driving test.",
         "application_mode": "HYBRID",
@@ -172,7 +172,7 @@ INITIAL_SERVICES = [
         "description": "Statutory certificate issued by the Revenue Department (Tahsildar) certifying the total annual household income of the applicant or family. Essential for fee reimbursement, scholarship sanction, welfare housing, EWS reservations, and government hospital concessions.",
         "short_summary": "Obtain official proof of annual household income through MeeSeva or the Prajavani Revenue portal.",
         "eligibility_criteria": "Permanent resident of Telangana residing in the jurisdictional Mandal. Household income must be verified by local Revenue Inspector (RI) and Village Revenue Officer (VRO).",
-        "official_url": "https://tg.meeseva.telangana.gov.in",
+        "official_url": "https://meeseva.telangana.gov.in",
         "fee_structure": "MeeSeva Service Charge: ₹45 (Statutory Govt Fee: Nil, User Convenience Fee: ₹45).",
         "processing_time": "7 to 15 working days.",
         "application_mode": "ONLINE",
@@ -193,7 +193,7 @@ INITIAL_SERVICES = [
         "description": "Official vital registration of a birth under the Registration of Births and Deaths Act 1969. Provides conclusive legal proof of date of birth, parentage, and place of birth. Institutional hospital births are reported digitally within 21 days.",
         "short_summary": "Register or download official digital birth certificates for births within municipal or gram panchayat limits.",
         "eligibility_criteria": "Birth must have occurred within the municipal limits or gram panchayat jurisdiction. Institutional births reported by hospitals within 21 days qualify for direct search and print.",
-        "official_url": "https://ghmc.gov.in/BirthAndDeath.aspx",
+        "official_url": "https://crsorgi.gov.in",
         "fee_structure": "Registration within 21 days: Free; Late registration (22-30 days): ₹2; Delayed (31 days - 1 year): ₹5 + Tahsildar order; MeeSeva digital copy print: ₹35 per certified copy.",
         "processing_time": "Instant download for pre-registered digital hospital births; 3-7 days for MeeSeva counter issuance.",
         "application_mode": "ONLINE",
@@ -214,7 +214,7 @@ INITIAL_SERVICES = [
         "description": "Legal document validating an individual's community and caste classification under the Telangana Issue of Community, Nativity and Date of Birth Certificates Act. Mandatory for claiming educational reservations, fee concessions, and government recruitment benefits.",
         "short_summary": "Get official certification of community, nativity, and sub-caste status for education and employment reservations.",
         "eligibility_criteria": "Applicant must belong to recognized Scheduled Caste (SC), Scheduled Tribe (ST), or Backward Class (BC) list of Telangana. Parents must possess land or lineage records in the Mandal.",
-        "official_url": "https://tg.meeseva.telangana.gov.in",
+        "official_url": "https://meeseva.telangana.gov.in",
         "fee_structure": "MeeSeva application fee: ₹45 (inclusive of user charge and digital certificate generation).",
         "processing_time": "15 to 30 working days (requires local enquiry by Revenue Inspector).",
         "application_mode": "HYBRID",
@@ -235,7 +235,7 @@ INITIAL_SERVICES = [
         "description": "Issuance of 10-digit alphanumeric Permanent Account Number (PAN) by the Income Tax Department. Acts as primary national financial identifier for opening bank accounts, filing income tax returns, high-value financial transactions, and investments.",
         "short_summary": "Get instant paperless digital PAN within 10 minutes using Aadhaar e-KYC or order physical laminated card.",
         "eligibility_criteria": "Any Indian citizen with an Aadhaar number linked with an active mobile phone (for Instant e-PAN) or any individual with valid identity/address proof.",
-        "official_url": "https://www.incometax.gov.in/iec/foportal/services/instant-epan",
+        "official_url": "https://www.incometax.gov.in/iec/foportal/",
         "fee_structure": "Instant digital e-PAN (via Income Tax Portal): FREE (₹0); Physical laminated card delivery (India): ₹107; Physical card (Foreign dispatch): ₹1,017.",
         "processing_time": "Instant e-PAN: 10 minutes (PDF download); Physical Card: 7-15 days dispatched via Speed Post.",
         "application_mode": "ONLINE",
@@ -319,7 +319,7 @@ INITIAL_SERVICES = [
         "description": "Official proof of continuous residence in a specified village, town, or city issued by the Revenue Department (Tahsildar). Required for quota admissions in state universities, civil service regional allocation, and welfare entitlements.",
         "short_summary": "Certify your domicile and permanent residential address through the local Tahsildar.",
         "eligibility_criteria": "Resident residing continuously in the state/district for a minimum qualifying period (ordinarily 4 to 7 years continuous study/living proof).",
-        "official_url": "https://tg.meeseva.telangana.gov.in",
+        "official_url": "https://meeseva.telangana.gov.in",
         "fee_structure": "MeeSeva Service Charge: ₹45 (Statutory Govt Fee: Nil, User Convenience Fee: ₹45).",
         "processing_time": "7 to 15 working days.",
         "application_mode": "ONLINE",
@@ -361,7 +361,7 @@ INITIAL_SERVICES = [
         "description": "Statutory document issued by Municipal Corporation (GHMC) or Gram Panchayat certifying the demise of an individual. Essential for insurance claims, settlement of bank accounts, inheritance of property, and pension closure.",
         "short_summary": "Obtain certified legal proof of death from the municipal civil registrar.",
         "eligibility_criteria": "Demise occurred within the territorial jurisdiction of the municipality or panchayat. Cause of death certificate from attending physician/hospital required.",
-        "official_url": "https://ghmc.gov.in/BirthAndDeath.aspx",
+        "official_url": "https://crsorgi.gov.in",
         "fee_structure": "Registration within 21 days: Free; Late registration (22-30 days): ₹2; Delayed registration up to 1 year: ₹5; Certified digital copy at MeeSeva: ₹35.",
         "processing_time": "Instant for pre-registered hospital cases; 3 to 7 working days for fresh registrations.",
         "application_mode": "ONLINE",
@@ -536,7 +536,7 @@ INITIAL_STEPS = [
         "service_id": "srv-passport",
         "step_number": 1,
         "title": "Register on Official Passport Seva Portal",
-        "description": "Visit portal2.passportindia.gov.in. Register using an active email ID and select your regional passport office. Beware of fake phishing domains.",
+        "description": "Visit www.passportindia.gov.in. Register using an active email ID and select your regional passport office. Beware of fake phishing domains.",
         "estimated_time": "15 minutes",
         "is_online_step": True,
         "tips": "Always verify the domain ends in .gov.in. No genuine agent login exists on private sites."
@@ -619,7 +619,7 @@ INITIAL_SOURCES = [
         "service_id": "srv-passport",
         "authority_name": "Consular, Passport and Visa Division, Ministry of External Affairs, Govt of India",
         "source_type": "GOVERNMENT_PORTAL",
-        "source_url": "https://portal2.passportindia.gov.in/AppOnlineProject/online/feeSchedule",
+        "source_url": "https://www.passportindia.gov.in",
         "document_title": "Passport Rules & Fee Schedule 2026",
         "publication_date": "2026-01-01",
         "last_checked_date": "2026-09-15",
@@ -632,7 +632,7 @@ INITIAL_SOURCES = [
         "service_id": "srv-driving-licence",
         "authority_name": "Ministry of Road Transport and Highways, Govt of India",
         "source_type": "GOVERNMENT_PORTAL",
-        "source_url": "https://parivahan.gov.in/parivahan//en/content/driving-licence-0",
+        "source_url": "https://sarathi.parivahan.gov.in",
         "document_title": "Central Motor Vehicles Rules 1989 - Rule 14 & 32 Fee Schedule",
         "publication_date": "2025-06-01",
         "last_checked_date": "2026-09-18",
@@ -645,7 +645,7 @@ INITIAL_SOURCES = [
         "service_id": "srv-income-cert",
         "authority_name": "Revenue Department, Government of Telangana",
         "source_type": "DEPARTMENT_ORDER",
-        "source_url": "https://tg.meeseva.telangana.gov.in",
+        "source_url": "https://meeseva.telangana.gov.in",
         "document_title": "G.O.Ms.No. 45 Revenue Guidelines on Digital Certificates",
         "publication_date": "2023-11-20",
         "last_checked_date": "2026-09-20",
@@ -689,9 +689,9 @@ INITIAL_VERIFICATIONS = [
         "verified_by_user_id": "usr-admin-1",
         "status": "VERIFIED",
         "previous_status": "NEEDS_VERIFICATION",
-        "findings": "Verified against Ministry of External Affairs portal2.passportindia.gov.in fee schedule and 2026 police verification guidelines. Fees confirmed at ₹1,500 for normal and ₹3,500 for tatkaal.",
+        "findings": "Verified against Ministry of External Affairs www.passportindia.gov.in fee schedule and 2026 police verification guidelines. Fees confirmed at ₹1,500 for normal and ₹3,500 for tatkaal.",
         "verified_at": "2026-09-15T10:30:00Z",
-        "source_url_checked": "https://portal2.passportindia.gov.in/AppOnlineProject/online/feeSchedule"
+        "source_url_checked": "https://www.passportindia.gov.in"
     },
     {
         "id": "vr-dl-01",
@@ -701,7 +701,7 @@ INITIAL_VERIFICATIONS = [
         "previous_status": "NEEDS_VERIFICATION",
         "findings": "Cross-referenced against Parivahan Sarathi national rules and Central Motor Vehicles Rules 1989 fees. Contactless Aadhaar testing confirmed active.",
         "verified_at": "2026-09-18T11:15:00Z",
-        "source_url_checked": "https://parivahan.gov.in/parivahan//en/content/driving-licence-0"
+        "source_url_checked": "https://sarathi.parivahan.gov.in"
     }
 ]
 
