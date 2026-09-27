@@ -1,4 +1,4 @@
-import { DICTIONARY, getLocalizedService } from './i18n.js';
+import { DICTIONARY } from './i18n.js';
 
 const { useState, useEffect, useMemo, useRef } = React;
 
@@ -31,15 +31,6 @@ export function CivicApp() {
     }
   });
 
-  // Login & Register Form State ("First I want login and next")
-  const [authMode, setAuthMode] = useState('login'); // 'login' | 'register'
-  const [authEmail, setAuthEmail] = useState('');
-  const [authPassword, setAuthPassword] = useState('');
-  const [authName, setAuthName] = useState('');
-  const [authState, setAuthState] = useState('Telangana');
-  const [authDistrict, setAuthDistrict] = useState('Hyderabad');
-
-  // Catalog State
   const [services, setServices] = useState([]);
   const [categories, setCategories] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
@@ -53,26 +44,8 @@ export function CivicApp() {
   const [modalTab, setModalTab] = useState('overview');
   const [isAiOpen, setIsAiOpen] = useState(false);
   const [isWizardOpen, setIsWizardOpen] = useState(false);
+  const [isAuthOpen, setIsAuthOpen] = useState(false);
   const [isNewAppOpen, setIsNewAppOpen] = useState(false);
-  const [isNewReminderOpen, setIsNewReminderOpen] = useState(false);
-
-  // New Application Form State
-  const [newAppServiceId, setNewAppServiceId] = useState('');
-  const [newAppRef, setNewAppRef] = useState('');
-  const [newAppStatus, setNewAppStatus] = useState('SUBMITTED');
-
-  // New Reminder Form State
-  const [newRemTitle, setNewRemTitle] = useState('');
-  const [newRemDate, setNewRemDate] = useState('');
-  const [newRemNotes, setNewRemNotes] = useState('');
-
-  // Guidance Wizard State
-  const [wizState, setWizState] = useState('Telangana');
-  const [wizAge, setWizAge] = useState('ADULT_18_59');
-  const [wizOcc, setWizOcc] = useState('CITIZEN');
-  const [wizService, setWizService] = useState('srv-passport');
-  const [wizResult, setWizResult] = useState(null);
-  const [isWizLoading, setIsWizLoading] = useState(false);
 
   // Data lists
   const [applications, setApplications] = useState([]);
@@ -81,7 +54,12 @@ export function CivicApp() {
   const [toast, setToast] = useState(null);
 
   // Chat State
-  const [chatMessages, setChatMessages] = useState([]);
+  const [chatMessages, setChatMessages] = useState([
+    {
+      role: 'assistant',
+      text: 'Namaste! I am CivicGuide AI, your official government process assistant. Ask me anything about required documents, statutory fees, eligibility, or application procedures for Indian public services.'
+    }
+  ]);
   const [chatInput, setChatInput] = useState('');
   const [isChatLoading, setIsChatLoading] = useState(false);
 
@@ -96,17 +74,7 @@ export function CivicApp() {
     setTimeout(() => setToast(null), 3500);
   };
 
-  // Sync default chat welcome message when language changes
-  useEffect(() => {
-    setChatMessages([
-      {
-        role: 'assistant',
-        text: t('chatWelcome')
-      }
-    ]);
-  }, [lang]);
-
-  // Initial Load of catalog
+  // Initial Load
   useEffect(() => {
     api('/services/categories')
       .then(res => setCategories(res.data || []))
@@ -116,7 +84,7 @@ export function CivicApp() {
       .then(res => setServices(res.data || []))
       .catch(err => showToast(err.message, 'error'));
 
-    if (currentUser && !currentUser.is_guest) {
+    if (currentUser) {
       api('/applications/saved')
         .then(res => setSavedIds(new Set((res.data || []).map(s => s.id))))
         .catch(console.error);
@@ -125,7 +93,6 @@ export function CivicApp() {
 
   // Load section-specific data
   useEffect(() => {
-    if (!currentUser || currentUser.is_guest) return;
     if (activeTab === 'applications') {
       api('/applications').then(res => setApplications(res.data || [])).catch(console.error);
     } else if (activeTab === 'reminders') {
@@ -133,27 +100,21 @@ export function CivicApp() {
     } else if (activeTab === 'admin' && currentUser?.role === 'admin') {
       api('/admin/stats').then(res => setAdminStats(res.data)).catch(console.error);
     }
-  }, [activeTab, currentUser]);
-
-  // Localized list of services for the active language
-  const localizedServices = useMemo(() => {
-    return services.map(s => getLocalizedService(s, lang));
-  }, [services, lang]);
+  }, [activeTab]);
 
   // Filter services
   const filteredServices = useMemo(() => {
-    let list = [...localizedServices];
+    let list = [...services];
     if (searchQuery) {
       const q = searchQuery.toLowerCase().trim();
       list = list.filter(s =>
         s.title.toLowerCase().includes(q) ||
-        (s.short_summary && s.short_summary.toLowerCase().includes(q)) ||
         (s.description && s.description.toLowerCase().includes(q)) ||
         (s.service_code && s.service_code.toLowerCase().includes(q))
       );
     }
     if (selectedCategory !== 'ALL') {
-      list = list.filter(s => s.category.toLowerCase().includes(selectedCategory.toLowerCase()) || (s.orig_category && s.orig_category === selectedCategory));
+      list = list.filter(s => s.category === selectedCategory);
     }
     if (selectedState !== 'ALL') {
       list = list.filter(s => s.state === 'All-India' || s.state === selectedState);
@@ -162,18 +123,10 @@ export function CivicApp() {
       list = list.filter(s => s.application_mode === selectedMode);
     }
     return list;
-  }, [localizedServices, searchQuery, selectedCategory, selectedState, selectedMode]);
+  }, [services, searchQuery, selectedCategory, selectedState, selectedMode]);
 
   // Toggle bookmark
   const handleToggleSave = async (serviceId) => {
-    if (!currentUser || currentUser.is_guest) {
-      showToast('Bookmarks saved for session', 'info');
-      const newSaved = new Set(savedIds);
-      if (newSaved.has(serviceId)) newSaved.delete(serviceId);
-      else newSaved.add(serviceId);
-      setSavedIds(newSaved);
-      return;
-    }
     try {
       const res = await api('/applications/saved/toggle', {
         method: 'POST',
@@ -197,8 +150,7 @@ export function CivicApp() {
   const openServiceModal = async (serviceId) => {
     try {
       const res = await api(`/services/${serviceId}`);
-      const localized = getLocalizedService(res.data, lang);
-      setSelectedService(localized);
+      setSelectedService(res.data);
       setModalTab('overview');
     } catch (e) {
       showToast(e.message, 'error');
@@ -239,7 +191,7 @@ export function CivicApp() {
         ...newMessages,
         {
           role: 'assistant',
-          text: 'Error retrieving verified government records: ' + err.message
+          text: 'Sorry, I encountered an issue retrieving verified government records: ' + err.message
         }
       ]);
     } finally {
@@ -247,326 +199,15 @@ export function CivicApp() {
     }
   };
 
-  // Auth Submit (Login / Register)
-  const handleAuthSubmit = async (e) => {
-    e.preventDefault();
-    try {
-      if (authMode === 'login') {
-        const res = await api('/auth/login', {
-          method: 'POST',
-          body: JSON.stringify({ email: authEmail, password: authPassword })
-        });
-        localStorage.setItem('civic_auth_token', res.data.token);
-        localStorage.setItem('civic_user', JSON.stringify(res.data.user));
-        setCurrentUser(res.data.user);
-        showToast(`Welcome back, ${res.data.user.full_name}!`, 'success');
-      } else {
-        const res = await api('/auth/register', {
-          method: 'POST',
-          body: JSON.stringify({
-            email: authEmail,
-            password: authPassword,
-            full_name: authName,
-            state: authState,
-            district: authDistrict,
-            preferred_language: lang
-          })
-        });
-        localStorage.setItem('civic_auth_token', res.data.token);
-        localStorage.setItem('civic_user', JSON.stringify(res.data.user));
-        setCurrentUser(res.data.user);
-        showToast('Registration successful! Welcome to CivicGuide.', 'success');
-      }
-    } catch (err) {
-      showToast(err.message, 'error');
-    }
-  };
-
-  // 1-Click Quick Demo Login
-  const handleQuickLogin = async (email, password) => {
-    try {
-      const res = await api('/auth/login', {
-        method: 'POST',
-        body: JSON.stringify({ email, password })
-      });
-      localStorage.setItem('civic_auth_token', res.data.token);
-      localStorage.setItem('civic_user', JSON.stringify(res.data.user));
-      setCurrentUser(res.data.user);
-      showToast(`Logged in as ${res.data.user.full_name}`, 'success');
-    } catch (err) {
-      showToast(err.message, 'error');
-    }
-  };
-
-  // Continue as Guest Citizen
-  const handleContinueAsGuest = () => {
-    const guestUser = {
-      id: 'usr-guest',
-      email: 'guest@civicguide.in',
-      full_name: lang === 'te' ? 'అతిథి పౌరుడు (Guest)' : lang === 'hi' ? 'अतिथि नागरिक (Guest)' : 'Guest Citizen',
-      role: 'citizen',
-      is_guest: true
-    };
-    localStorage.setItem('civic_user', JSON.stringify(guestUser));
-    setCurrentUser(guestUser);
-    showToast(lang === 'te' ? 'గెస్ట్ మోడ్‌లో ప్రవేశించారు' : lang === 'hi' ? 'अतिथि मोड में प्रवेश किया' : 'Entered in Guest Citizen Mode', 'info');
-  };
-
-  // Auth logout ("when i open website first i want login and next")
+  // Auth logout
   const handleLogout = () => {
     localStorage.removeItem('civic_auth_token');
     localStorage.removeItem('civic_user');
     setCurrentUser(null);
     setSavedIds(new Set());
-    setActiveTab('services');
-    showToast(lang === 'te' ? 'లాగౌట్ విజయవంతమైంది' : lang === 'hi' ? 'सफलतापूर्वक लॉग आउट किया गया' : 'Signed out successfully');
+    showToast('Signed out successfully');
   };
 
-  // Wizard guidance generator
-  const handleGenerateGuidance = async () => {
-    setIsWizLoading(true);
-    try {
-      const res = await api('/ai/guidance', {
-        method: 'POST',
-        body: JSON.stringify({
-          country: 'India',
-          state: wizState,
-          ageGroup: wizAge,
-          occupation: wizOcc,
-          serviceId: wizService
-        })
-      });
-      setWizResult(res);
-    } catch (err) {
-      showToast(err.message, 'error');
-    } finally {
-      setIsWizLoading(false);
-    }
-  };
-
-  // Add application
-  const handleCreateApplication = async (e) => {
-    e.preventDefault();
-    try {
-      const res = await api('/applications', {
-        method: 'POST',
-        body: JSON.stringify({
-          service_id: newAppServiceId,
-          application_reference_number: newAppRef,
-          status: newAppStatus
-        })
-      });
-      setApplications([res.data, ...applications]);
-      setIsNewAppOpen(false);
-      setNewAppRef('');
-      showToast('Application tracked successfully', 'success');
-    } catch (err) {
-      showToast(err.message, 'error');
-    }
-  };
-
-  // Add reminder
-  const handleCreateReminder = async (e) => {
-    e.preventDefault();
-    try {
-      const res = await api('/reminders', {
-        method: 'POST',
-        body: JSON.stringify({
-          title: newRemTitle,
-          reminder_date: newRemDate,
-          notes: newRemNotes
-        })
-      });
-      setReminders([res.data, ...reminders]);
-      setIsNewReminderOpen(false);
-      setNewRemTitle('');
-      setNewRemDate('');
-      setNewRemNotes('');
-      showToast('Reminder added successfully', 'success');
-    } catch (err) {
-      showToast(err.message, 'error');
-    }
-  };
-
-  // Popular search tags localized
-  const popularTags = useMemo(() => {
-    if (lang === 'te') {
-      return ['పాస్‌పోర్ట్', 'డ్రైవింగ్ లైసెన్స్', 'ఆదాయ ధ్రువీకరణ', 'జనన ధ్రువీకరణ', 'కుల ధ్రువీకరణ', 'ఓటర్ ఐడీ', 'ఆధార్', 'స్కాలర్‌షిప్'];
-    } else if (lang === 'hi') {
-      return ['पासपोर्ट', 'ड्राइविंग लाइसेंस', 'आय प्रमाण पत्र', 'जन्म प्रमाण पत्र', 'जाति प्रमाण पत्र', 'वोटर आईडी', 'आधार', 'छात्रवृत्ति'];
-    } else {
-      return ['Passport', 'Driving Licence', 'Income Certificate', 'Birth Certificate', 'Caste Certificate', 'Voter ID', 'Aadhaar', 'Scholarship'];
-    }
-  }, [lang]);
-
-  // =========================================================================
-  // VIEW 1: LOGIN GATEWAY SCREEN ("when i open website first i want login and next")
-  // =========================================================================
-  if (!currentUser) {
-    return (
-      <div className="login-gateway-container">
-        {/* Top Language Bar for Login Gateway */}
-        <div className="top-notice-bar">
-          <div className="container notice-inner">
-            <div className="notice-left">
-              <span className="live-indicator"></span>
-              <span className="notice-badge">CIVIC NOTICE:</span>
-              <span className="notice-text">{t('officialNotice')}</span>
-            </div>
-            <div className="lang-dropdown-wrapper">
-              <span>🌐</span>
-              <select
-                value={lang}
-                onChange={(e) => {
-                  const newLang = e.target.value;
-                  setLang(newLang);
-                  localStorage.setItem('civic_lang', newLang);
-                }}
-                className="lang-dropdown"
-                aria-label="Select Language"
-              >
-                <option value="en">English (EN)</option>
-                <option value="te">తెలుగు (Telugu)</option>
-                <option value="hi">हिंदी (Hindi)</option>
-              </select>
-            </div>
-          </div>
-        </div>
-
-        {/* Login Hero Box with Extra Graphics */}
-        <div className="login-hero-card">
-          <div className="login-brand-header">
-            <div className="brand-emblem-large">
-              <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
-              </svg>
-            </div>
-            <h1 className="login-title">{t('loginGatewayTitle')}</h1>
-            <p className="login-sub">{t('loginGatewaySubtitle')}</p>
-          </div>
-
-          {/* 4 Trust Badges */}
-          <div className="login-trust-badges">
-            <span className="trust-pill">{t('trustBadge1')}</span>
-            <span className="trust-pill">{t('trustBadge2')}</span>
-            <span className="trust-pill">{t('trustBadge3')}</span>
-            <span className="trust-pill">{t('trustBadge4')}</span>
-          </div>
-
-          {/* Login Card Box */}
-          <div className="login-card-box">
-            <div className="login-tabs">
-              <button
-                className={`login-tab-btn ${authMode === 'login' ? 'active' : ''}`}
-                onClick={() => setAuthMode('login')}
-              >
-                {t('tabSignIn')}
-              </button>
-              <button
-                className={`login-tab-btn ${authMode === 'register' ? 'active' : ''}`}
-                onClick={() => setAuthMode('register')}
-              >
-                {t('tabRegister')}
-              </button>
-            </div>
-
-            <form onSubmit={handleAuthSubmit} className="login-form">
-              {authMode === 'register' && (
-                <div className="form-group">
-                  <label>{t('fullNameLabel')}</label>
-                  <input
-                    type="text"
-                    className="form-control"
-                    placeholder="e.g. Shiva Sai"
-                    value={authName}
-                    onChange={(e) => setAuthName(e.target.value)}
-                    required
-                  />
-                </div>
-              )}
-
-              <div className="form-group">
-                <label>{t('emailLabel')}</label>
-                <input
-                  type="email"
-                  className="form-control"
-                  placeholder="citizen@example.com"
-                  value={authEmail}
-                  onChange={(e) => setAuthEmail(e.target.value)}
-                  required
-                />
-              </div>
-
-              <div className="form-group">
-                <label>{t('passwordLabel')}</label>
-                <input
-                  type="password"
-                  className="form-control"
-                  placeholder="••••••••"
-                  value={authPassword}
-                  onChange={(e) => setAuthPassword(e.target.value)}
-                  required
-                />
-              </div>
-
-              <button type="submit" className="btn-primary" style={{ width: '100%', padding: '12px', fontSize: '15px' }}>
-                {authMode === 'login' ? t('btnSignInAction') : t('btnRegisterAction')}
-              </button>
-            </form>
-
-            {/* Quick 1-Click Instant Access */}
-            <div className="quick-access-section">
-              <div className="divider-text">
-                <span>{t('quickDemoTitle')}</span>
-              </div>
-
-              <div className="quick-buttons-stack">
-                <button
-                  type="button"
-                  className="btn-quick-demo citizen"
-                  onClick={() => handleQuickLogin('citizen@example.com', 'Password@123')}
-                >
-                  {t('demoCitizenBtn')}
-                </button>
-
-                <button
-                  type="button"
-                  className="btn-quick-demo admin"
-                  onClick={() => handleQuickLogin('admin@civicguide.gov.in', 'Password@123')}
-                >
-                  {t('demoAdminBtn')}
-                </button>
-
-                <button
-                  type="button"
-                  className="btn-quick-guest"
-                  onClick={handleContinueAsGuest}
-                >
-                  {t('continueGuestBtn')}
-                </button>
-              </div>
-
-              <p className="guest-note">{t('guestNotice')}</p>
-            </div>
-          </div>
-        </div>
-
-        {/* Toast */}
-        {toast && (
-          <div className="toast-container">
-            <div className="toast">
-              <span>{toast.type === 'error' ? '❌' : toast.type === 'success' ? '✅' : 'ℹ️'}</span>
-              <span>{toast.message}</span>
-            </div>
-          </div>
-        )}
-      </div>
-    );
-  }
-
-  // =========================================================================
-  // VIEW 2: MAIN CIVIC PORTAL (Rendered after Login - "next")
-  // =========================================================================
   return (
     <div>
       {/* Top Notice Bar */}
@@ -582,9 +223,8 @@ export function CivicApp() {
             <select
               value={lang}
               onChange={(e) => {
-                const newLang = e.target.value;
-                setLang(newLang);
-                localStorage.setItem('civic_lang', newLang);
+                setLang(e.target.value);
+                localStorage.setItem('civic_lang', e.target.value);
               }}
               className="lang-dropdown"
               aria-label="Select Language"
@@ -608,10 +248,10 @@ export function CivicApp() {
             </div>
             <div>
               <div style={{ display: 'flex', alignItems: 'center' }}>
-                <span className="brand-title">{t('brandTitle')}</span>
+                <span className="brand-title">CivicGuide</span>
                 <span className="ai-pill">AI</span>
               </div>
-              <p className="brand-sub">{t('brandSub')}</p>
+              <p className="brand-sub">Government Process Assistant</p>
             </div>
           </div>
 
@@ -620,25 +260,25 @@ export function CivicApp() {
               className={`nav-btn ${activeTab === 'services' ? 'active' : ''}`}
               onClick={() => setActiveTab('services')}
             >
-              <span>🏛️</span> {t('navServices')}
+              <span>🏛️</span> Services
             </button>
             <button
               className={`nav-btn ${isAiOpen ? 'active' : ''}`}
               onClick={() => setIsAiOpen(true)}
             >
-              <span>✨</span> {t('navChat')}
+              <span>✨</span> Ask Civic AI
             </button>
             <button
               className={`nav-btn ${activeTab === 'applications' ? 'active' : ''}`}
               onClick={() => setActiveTab('applications')}
             >
-              <span>📋</span> {t('navApplications')}
+              <span>📋</span> My Applications
             </button>
             <button
               className={`nav-btn ${activeTab === 'reminders' ? 'active' : ''}`}
               onClick={() => setActiveTab('reminders')}
             >
-              <span>🔔</span> {t('navReminders')}
+              <span>🔔</span> Reminders
             </button>
             {currentUser?.role === 'admin' && (
               <button
@@ -646,42 +286,43 @@ export function CivicApp() {
                 onClick={() => setActiveTab('admin')}
                 style={{ color: '#7c3aed' }}
               >
-                <span>🛡️</span> {t('navAdmin')}
+                <span>🛡️</span> Admin Console
               </button>
             )}
           </nav>
 
           <div className="header-actions">
             <button className="btn-gold" onClick={() => setIsWizardOpen(true)}>
-              <span>✨</span> {t('btnWizard')}
+              <span>✨</span> {t('getGuidance')}
             </button>
-
-            {/* User Profile & Sign Out */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <div style={{
-                width: '32px', height: '32px', borderRadius: '50%',
-                background: '#0f2744', color: '#fff', display: 'flex',
-                alignItems: 'center', justifyContent: 'center', fontWeight: '700', fontSize: '13px'
-              }}>
-                {currentUser.full_name ? currentUser.full_name.charAt(0) : 'U'}
+            {currentUser ? (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <div style={{
+                  width: '32px', height: '32px', borderRadius: '50%',
+                  background: '#0f2744', color: '#fff', display: 'flex',
+                  alignItems: 'center', justifyContent: 'center', fontWeight: '700', fontSize: '13px'
+                }}>
+                  {currentUser.full_name.charAt(0)}
+                </div>
+                <span style={{ fontSize: '13px', fontWeight: '700' }}>{currentUser.full_name.split(' ')[0]}</span>
+                <button
+                  onClick={handleLogout}
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#ef4444', fontSize: '14px', padding: '4px' }}
+                  title="Logout"
+                >
+                  🚪
+                </button>
               </div>
-              <span style={{ fontSize: '13px', fontWeight: '700' }}>
-                {currentUser.full_name ? currentUser.full_name.split(' ')[0] : 'Citizen'}
-              </span>
-              <button
-                onClick={handleLogout}
-                className="btn-secondary"
-                style={{ padding: '6px 10px', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '4px' }}
-                title="Sign Out"
-              >
-                <span>🚪</span> {t('btnLogout')}
+            ) : (
+              <button className="btn-primary" onClick={() => setIsAuthOpen(true)}>
+                <span>👤</span> {t('login')}
               </button>
-            </div>
+            )}
           </div>
         </div>
       </header>
 
-      {/* TAB 1: SERVICES (Catalog & Hero) */}
+      {/* TAB: SERVICES */}
       {activeTab === 'services' && (
         <main>
           {/* Hero Section with Extra Graphics */}
@@ -690,7 +331,7 @@ export function CivicApp() {
             <div className="hero-decor-orb-2"></div>
             <div className="container" style={{ position: 'relative', zIndex: 2 }}>
               <div className="hero-tag">
-                <span>🇮🇳</span> {t('nationalInitiative')}
+                <span>🇮🇳</span> National Citizen Information Initiative
               </div>
               <h1 className="hero-title">{t('heroTitle')}</h1>
               <p className="hero-subtitle">{t('heroSubtitle')}</p>
@@ -723,7 +364,7 @@ export function CivicApp() {
               {/* Quick Suggestion Chips */}
               <div className="quick-tags">
                 <span>{t('popularSearches')}</span>
-                {popularTags.map(tag => (
+                {['Passport', 'Driving Licence', 'Income Certificate', 'Birth Certificate', 'Caste Certificate', 'Voter ID', 'Aadhaar', 'Scholarship'].map(tag => (
                   <button
                     key={tag}
                     className="tag-chip"
@@ -738,23 +379,23 @@ export function CivicApp() {
               <div className="hero-metrics-grid">
                 <div className="metric-card">
                   <div style={{ fontSize: '20px', marginBottom: '2px' }}>🏛️</div>
-                  <div className="metric-value">{t('metricPortalsVal')}</div>
-                  <div className="metric-label">{t('metricPortalsLbl')}</div>
+                  <div className="metric-value">12+</div>
+                  <div className="metric-label">Official Portals</div>
                 </div>
                 <div className="metric-card">
                   <div style={{ fontSize: '20px', marginBottom: '2px' }}>⚡</div>
-                  <div className="metric-value">{t('metricRagVal')}</div>
-                  <div className="metric-label">{t('metricRagLbl')}</div>
+                  <div className="metric-value">100%</div>
+                  <div className="metric-label">Grounded RAG</div>
                 </div>
                 <div className="metric-card">
                   <div style={{ fontSize: '20px', marginBottom: '2px' }}>🛡️</div>
-                  <div className="metric-value">{t('metricToutsVal')}</div>
-                  <div className="metric-label">{t('metricToutsLbl')}</div>
+                  <div className="metric-value">Zero</div>
+                  <div className="metric-label">Touts Guarantee</div>
                 </div>
                 <div className="metric-card">
                   <div style={{ fontSize: '20px', marginBottom: '2px' }}>🌐</div>
-                  <div className="metric-value">{t('metricLangVal')}</div>
-                  <div className="metric-label">{t('metricLangLbl')}</div>
+                  <div className="metric-value">3</div>
+                  <div className="metric-label">Languages (EN/TE/HI)</div>
                 </div>
               </div>
 
@@ -764,44 +405,20 @@ export function CivicApp() {
                   className={`cat-pill-btn ${selectedCategory === 'ALL' ? 'active' : ''}`}
                   onClick={() => setSelectedCategory('ALL')}
                 >
-                  <span>🌟</span> {t('catAll')}
+                  <span>🌟</span> All Categories
                 </button>
-                <button
-                  className={`cat-pill-btn ${selectedCategory === 'Identity' ? 'active' : ''}`}
-                  onClick={() => setSelectedCategory('Identity')}
-                >
-                  <span>🛂</span> {t('catIdentity')}
-                </button>
-                <button
-                  className={`cat-pill-btn ${selectedCategory === 'Transport' ? 'active' : ''}`}
-                  onClick={() => setSelectedCategory('Transport')}
-                >
-                  <span>🚗</span> {t('catTransport')}
-                </button>
-                <button
-                  className={`cat-pill-btn ${selectedCategory === 'Revenue' ? 'active' : ''}`}
-                  onClick={() => setSelectedCategory('Revenue')}
-                >
-                  <span>📜</span> {t('catRevenue')}
-                </button>
-                <button
-                  className={`cat-pill-btn ${selectedCategory === 'Civil' ? 'active' : ''}`}
-                  onClick={() => setSelectedCategory('Civil')}
-                >
-                  <span>👶</span> {t('catCivil')}
-                </button>
-                <button
-                  className={`cat-pill-btn ${selectedCategory === 'Business' ? 'active' : ''}`}
-                  onClick={() => setSelectedCategory('Business')}
-                >
-                  <span>💼</span> {t('catBusiness')}
-                </button>
-                <button
-                  className={`cat-pill-btn ${selectedCategory === 'Education' ? 'active' : ''}`}
-                  onClick={() => setSelectedCategory('Education')}
-                >
-                  <span>🎓</span> {t('catEducation')}
-                </button>
+                {categories.map(cat => (
+                  <button
+                    key={cat}
+                    className={`cat-pill-btn ${selectedCategory === cat ? 'active' : ''}`}
+                    onClick={() => setSelectedCategory(cat)}
+                  >
+                    <span>
+                      {cat.includes('Identity') ? '🛂' : cat.includes('Transport') ? '🚗' : cat.includes('Revenue') ? '📜' : cat.includes('Civil') ? '👶' : cat.includes('Education') ? '🎓' : '🏢'}
+                    </span>
+                    {cat}
+                  </button>
+                ))}
               </div>
             </div>
           </section>
@@ -810,13 +427,13 @@ export function CivicApp() {
           <div className="container">
             <div className="filter-bar">
               <div className="filter-group">
-                <label style={{ fontSize: '12px', fontWeight: '700', color: '#475569' }}>{t('filterJurisdiction')}</label>
+                <label style={{ fontSize: '12px', fontWeight: '700', color: '#475569' }}>JURISDICTION:</label>
                 <select
                   value={selectedState}
                   onChange={(e) => setSelectedState(e.target.value)}
                   className="filter-select"
                 >
-                  <option value="ALL">{t('allStates')}</option>
+                  <option value="ALL">All States / Pan-India</option>
                   <option value="Telangana">Telangana</option>
                   <option value="Andhra Pradesh">Andhra Pradesh</option>
                   <option value="Maharashtra">Maharashtra</option>
@@ -824,140 +441,382 @@ export function CivicApp() {
                   <option value="Delhi">Delhi</option>
                 </select>
 
-                <label style={{ fontSize: '12px', fontWeight: '700', color: '#475569', marginLeft: '8px' }}>{t('filterMode')}</label>
+                <label style={{ fontSize: '12px', fontWeight: '700', color: '#475569', marginLeft: '8px' }}>MODE:</label>
                 <select
                   value={selectedMode}
                   onChange={(e) => setSelectedMode(e.target.value)}
                   className="filter-select"
                 >
-                  <option value="ALL">{t('allModes')}</option>
-                  <option value="ONLINE">{t('modeOnline')}</option>
-                  <option value="OFFLINE">{t('modeOffline')}</option>
-                  <option value="HYBRID">{t('modeHybrid')}</option>
+                  <option value="ALL">All Modes</option>
+                  <option value="ONLINE">Online Portal</option>
+                  <option value="OFFLINE">Offline Office</option>
+                  <option value="HYBRID">Hybrid</option>
                 </select>
               </div>
 
               <div className="results-counter">
-                {filteredServices.length} {t('serviceCountSuffix')}
+                {filteredServices.length} services found
               </div>
             </div>
 
-            {/* Services Grid */}
+            {/* Services Grid with Visual Cards */}
             <div className="services-grid">
-              {filteredServices.map(srv => {
-                const isSaved = savedIds.has(srv.id);
-                return (
-                  <div key={srv.id} className="service-card">
-                    <div className="service-card-header">
-                      <div className="service-card-meta">
-                        <span className="service-badge-category">{srv.category}</span>
-                        <span className="service-badge-verified">
-                          <span>✓</span> {t('badgeOfficial')}
-                        </span>
-                      </div>
-                      <button
-                        className={`btn-bookmark ${isSaved ? 'active' : ''}`}
-                        onClick={() => handleToggleSave(srv.id)}
-                        title={isSaved ? t('btnSaved') : t('btnSave')}
-                      >
-                        {isSaved ? '★' : '☆'}
-                      </button>
-                    </div>
+              {filteredServices.length === 0 ? (
+                <div style={{
+                  gridColumn: '1/-1', textAlign: 'center', padding: '60px 20px',
+                  background: '#fff', borderRadius: '16px', border: '1px solid #e2e8f0'
+                }}>
+                  <p style={{ fontSize: '32px', marginBottom: '8px' }}>🔍</p>
+                  <h4 style={{ fontWeight: '700', color: '#0f172a', marginBottom: '4px' }}>No matching government services found</h4>
+                  <p style={{ fontSize: '13px', color: '#64748b' }}>Try adjusting your search query or jurisdiction filters.</p>
+                </div>
+              ) : (
+                filteredServices.map(s => {
+                  const isSaved = savedIds.has(s.id);
+                  const isVerified = s.verification_status === 'VERIFIED';
+                  const feeSnippet = s.fee_structure ? s.fee_structure.split(';')[0] : 'Check Portal';
 
-                    <h3 className="service-card-title">{srv.title}</h3>
-                    <p className="service-card-desc">{srv.short_summary || srv.description}</p>
+                  return (
+                    <div key={s.id} className="service-card">
+                      <div>
+                        <div className="card-header-meta">
+                          <div className="meta-badges">
+                            <span className="badge-dept">{s.department?.code || 'GOVT'}</span>
+                            <span className="badge-state">{s.state}</span>
+                            <span className="badge-mode">{s.application_mode}</span>
+                          </div>
+                          <button
+                            className={`bookmark-btn ${isSaved ? 'saved' : ''}`}
+                            onClick={() => handleToggleSave(s.id)}
+                            title={isSaved ? 'Remove bookmark' : 'Bookmark service'}
+                          >
+                            ★
+                          </button>
+                        </div>
 
-                    <div className="service-card-details">
-                      <div className="detail-item">
-                        <span className="detail-label">{t('lblProcessing')}</span>
-                        <span className="detail-value">{srv.processing_time || '7-15 Days'}</span>
+                        <h3 className="service-title" onClick={() => openServiceModal(s.id)}>
+                          {s.title}
+                        </h3>
+                        <p className="service-desc">{s.short_summary || s.description}</p>
+
+                        <div className={`verification-pill ${isVerified ? 'verified' : 'unverified'}`}>
+                          <span>{isVerified ? '🛡️ ' + t('verifiedBadge') : '⚠️ ' + t('needsVerificationBadge')}</span>
+                          <span className="last-verified-date">{t('lastVerified')}: {s.last_verified}</span>
+                        </div>
+
+                        <div className="card-facts">
+                          <div className="fact-item">
+                            <span className="fact-label">{t('fees')}</span>
+                            <span className="fact-value" title={s.fee_structure}>
+                              💰 {feeSnippet}
+                            </span>
+                          </div>
+                          <div className="fact-item">
+                            <span className="fact-label">{t('processingTime')}</span>
+                            <span className="fact-value">
+                              ⏱️ {s.processing_time}
+                            </span>
+                          </div>
+                        </div>
                       </div>
-                      <div className="detail-item">
-                        <span className="detail-label">{t('lblFees')}</span>
-                        <span className="detail-value" style={{ color: '#0f766e', fontWeight: '700' }}>
-                          {srv.fee_structure ? srv.fee_structure.split(';')[0] : t('freeFee')}
-                        </span>
+
+                      <div className="card-actions">
+                        <button className="btn-primary" onClick={() => openServiceModal(s.id)}>
+                          <span>📋</span> {t('viewDetails')}
+                        </button>
+                        <button
+                          className="btn-gold"
+                          onClick={() => {
+                            setIsAiOpen(true);
+                            handleSendMessage(`Explain required documents and process for ${s.title}`, s.id);
+                          }}
+                          title="Ask AI"
+                        >
+                          ✨
+                        </button>
+                        <a
+                          href={s.official_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="btn-secondary"
+                          title="Open Verified Official Government Portal"
+                        >
+                          🔗
+                        </a>
                       </div>
                     </div>
-
-                    <div className="service-card-actions">
-                      <button
-                        className="btn-primary"
-                        style={{ width: '100%' }}
-                        onClick={() => openServiceModal(srv.id)}
-                      >
-                        <span>📄</span> {t('btnViewDetails')}
-                      </button>
-                    </div>
-                  </div>
-                );
-              })}
+                  );
+                })
+              )}
             </div>
           </div>
         </main>
       )}
 
-      {/* TAB 2: APPLICATIONS TRACKER */}
+      {/* TAB: APPLICATIONS */}
       {activeTab === 'applications' && (
-        <div className="container" style={{ padding: '36px 0' }}>
+        <main className="container" style={{ padding: '40px 20px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
             <div>
-              <h2 style={{ fontSize: '24px', fontWeight: '800', color: '#0f172a' }}>{t('appsTitle')}</h2>
-              <p style={{ color: '#64748b', fontSize: '14px' }}>{t('appsSubtitle')}</p>
+              <h2 style={{ fontSize: '24px', fontWeight: '800', color: '#0f2744' }}>My Tracked Applications</h2>
+              <p style={{ fontSize: '13px', color: '#64748b' }}>Monitor documents readiness, application tokens, and stage progression.</p>
             </div>
             <button className="btn-primary" onClick={() => setIsNewAppOpen(true)}>
-              {t('btnNewApp')}
+              + Track New Application
             </button>
           </div>
 
           {applications.length === 0 ? (
-            <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: '16px', padding: '48px', textAlign: 'center' }}>
-              <div style={{ fontSize: '48px', marginBottom: '16px' }}>📋</div>
-              <h3 style={{ fontSize: '18px', fontWeight: '700', marginBottom: '8px' }}>{t('emptyApps')}</h3>
+            <div style={{ textAlign: 'center', padding: '60px 20px', background: '#fff', borderRadius: '16px', border: '1px solid #e2e8f0' }}>
+              <p style={{ fontSize: '32px', marginBottom: '12px' }}>📁</p>
+              <h3 style={{ fontWeight: '700', color: '#0f172a', marginBottom: '6px' }}>No tracked applications yet</h3>
+              <p style={{ fontSize: '13px', color: '#64748b', marginBottom: '20px' }}>
+                Add an ongoing government application or open any service to track your documentation readiness.
+              </p>
+              <button className="btn-primary" onClick={() => setIsNewAppOpen(true)}>+ Track New Application</button>
             </div>
           ) : (
-            <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: '16px', overflow: 'hidden' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '14px' }}>
-                <thead style={{ background: '#f8fafc', borderBottom: '1px solid #e2e8f0', fontWeight: '700', color: '#475569' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              {applications.map(app => {
+                const docs = app.documents || [];
+                const readyCount = docs.filter(d => d.status === 'READY' || d.status === 'UPLOADED').length;
+                const progressPct = docs.length ? Math.round((readyCount / docs.length) * 100) : 0;
+
+                return (
+                  <div key={app.id} style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: '16px', padding: '20px', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '12px' }}>
+                      <div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <h4 style={{ fontSize: '17px', fontWeight: '800', color: '#0f2744' }}>{app.service_title}</h4>
+                          <span style={{ fontSize: '10px', fontWeight: '700', padding: '2px 8px', borderRadius: '999px', background: '#eff6ff', color: '#1e40af' }}>
+                            {app.status}
+                          </span>
+                        </div>
+                        <p style={{ fontSize: '12px', color: '#64748b', marginTop: '2px' }}>
+                          Ref / Token: <strong>{app.application_reference_number || 'N/A'}</strong> • Applied on: {app.applied_on || 'Pending'}
+                        </p>
+                      </div>
+                      <button
+                        onClick={async () => {
+                          if (confirm('Delete this tracked application?')) {
+                            await api(`/applications/${app.id}`, { method: 'DELETE' });
+                            setApplications(applications.filter(a => a.id !== app.id));
+                            showToast('Application deleted');
+                          }
+                        }}
+                        style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '12px', fontWeight: '600' }}
+                      >
+                        Delete
+                      </button>
+                    </div>
+
+                    {/* Progress Bar with Extra Graphics */}
+                    <div style={{ marginBottom: '16px' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', fontWeight: '700', color: '#475569', marginBottom: '4px' }}>
+                        <span>Document Readiness: {readyCount}/{docs.length} documents ready</span>
+                        <span>{progressPct}%</span>
+                      </div>
+                      <div style={{ height: '8px', background: '#f1f5f9', borderRadius: '999px', overflow: 'hidden' }}>
+                        <div style={{
+                          width: `${progressPct}%`, height: '100%',
+                          background: progressPct === 100 ? '#10b981' : progressPct > 50 ? '#3b82f6' : '#f59e0b',
+                          transition: 'width 0.4s ease'
+                        }}></div>
+                      </div>
+                    </div>
+
+                    {/* Document items */}
+                    <div style={{ background: '#f8fafc', borderRadius: '10px', padding: '12px', border: '1px solid #f1f5f9' }}>
+                      <span style={{ fontSize: '11px', fontWeight: '700', textTransform: 'uppercase', color: '#64748b', display: 'block', marginBottom: '8px' }}>
+                        Checklist Items
+                      </span>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                        {docs.map(d => (
+                          <div key={d.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: '#fff', padding: '6px 10px', borderRadius: '6px', border: '1px solid #e2e8f0', fontSize: '12px' }}>
+                            <span style={{ color: '#0f172a', fontWeight: '500' }}>{d.document_name}</span>
+                            <select
+                              value={d.status}
+                              onChange={async (e) => {
+                                const newStat = e.target.value;
+                                await api(`/applications/documents/${d.id}`, {
+                                  method: 'PATCH',
+                                  body: JSON.stringify({ status: newStat })
+                                });
+                                setApplications(applications.map(a => {
+                                  if (a.id === app.id) {
+                                    return {
+                                      ...a,
+                                      documents: a.documents.map(item => item.id === d.id ? { ...item, status: newStat } : item)
+                                    };
+                                  }
+                                  return a;
+                                }));
+                                showToast('Document status updated', 'success');
+                              }}
+                              style={{ fontSize: '11px', fontWeight: '600', padding: '2px 6px', borderRadius: '4px', border: '1px solid #cbd5e1' }}
+                            >
+                              <option value="NOT_READY">Not Ready</option>
+                              <option value="READY">Ready (Original)</option>
+                              <option value="UPLOADED">Uploaded / Scanned</option>
+                            </select>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </main>
+      )}
+
+      {/* TAB: REMINDERS */}
+      {activeTab === 'reminders' && (
+        <main className="container" style={{ padding: '40px 20px' }}>
+          <div style={{ maxWidth: '700px', margin: '0 auto', background: '#fff', padding: '28px', borderRadius: '16px', border: '1px solid #e2e8f0', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
+            <h3 style={{ fontSize: '20px', fontWeight: '800', color: '#0f2744', marginBottom: '8px' }}>🔔 Civic Expiry & Renewal Reminders</h3>
+            <p style={{ fontSize: '13px', color: '#64748b', marginBottom: '24px' }}>Set reminders for passport expiry, driving licence renewal, tax filing deadlines, or scholarship submission dates.</p>
+
+            <form onSubmit={async (e) => {
+              e.preventDefault();
+              const f = e.target;
+              const title = f.remTitle.value;
+              const date = f.remDate.value;
+              const notes = f.remNotes.value;
+              try {
+                const res = await api('/reminders', {
+                  method: 'POST',
+                  body: JSON.stringify({ title, reminder_date: date, notes })
+                });
+                setReminders([...reminders, res.data]);
+                showToast('Reminder added', 'success');
+                f.reset();
+              } catch (err) {
+                showToast(err.message, 'error');
+              }
+            }} style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '24px', paddingBottom: '24px', borderBottom: '1px solid #e2e8f0' }}>
+              <input name="remTitle" className="form-control" placeholder="Reminder Title (e.g., Renew Driving Licence)" required />
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                <input type="date" name="remDate" className="form-control" required />
+                <input type="text" name="remNotes" className="form-control" placeholder="Notes (optional)" />
+              </div>
+              <button type="submit" className="btn-primary" style={{ alignSelf: 'flex-start' }}>+ Add Reminder</button>
+            </form>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              {reminders.map(r => (
+                <div key={r.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', background: '#fff', border: '1px solid #e2e8f0', borderRadius: '10px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <input
+                      type="checkbox"
+                      checked={r.is_completed}
+                      onChange={async (e) => {
+                        const val = e.target.checked;
+                        await api(`/reminders/${r.id}`, { method: 'PATCH', body: JSON.stringify({ is_completed: val }) });
+                        setReminders(reminders.map(item => item.id === r.id ? { ...item, is_completed: val } : item));
+                      }}
+                      style={{ width: '18px', height: '18px', cursor: 'pointer' }}
+                    />
+                    <div>
+                      <span style={{ fontSize: '14px', fontWeight: '700', color: r.is_completed ? '#94a3b8' : '#0f172a', textDecoration: r.is_completed ? 'line-through' : 'none' }}>
+                        {r.title}
+                      </span>
+                      <span style={{ fontSize: '12px', color: '#64748b', display: 'block' }}>
+                        📅 Due: {r.reminder_date} • {r.service_title || 'Civic Procedure'}
+                      </span>
+                    </div>
+                  </div>
+                  <button
+                    onClick={async () => {
+                      await api(`/reminders/${r.id}`, { method: 'DELETE' });
+                      setReminders(reminders.filter(item => item.id !== r.id));
+                      showToast('Reminder deleted');
+                    }}
+                    style={{ background: 'none', border: 'none', color: '#ef4444', fontSize: '12px', cursor: 'pointer', fontWeight: '600' }}
+                  >
+                    ✕
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        </main>
+      )}
+
+      {/* TAB: ADMIN CONSOLE */}
+      {activeTab === 'admin' && currentUser?.role === 'admin' && (
+        <main className="container" style={{ padding: '40px 20px' }}>
+          <div style={{ marginBottom: '24px' }}>
+            <h2 style={{ fontSize: '24px', fontWeight: '800', color: '#0f2744' }}>Government Information Admin Console</h2>
+            <p style={{ fontSize: '13px', color: '#64748b' }}>Manage official services, audit sources, and certify accuracy against government gazettes.</p>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px', marginBottom: '32px' }}>
+            <div style={{ background: '#fff', padding: '18px', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
+              <span style={{ fontSize: '11px', fontWeight: '700', color: '#64748b', textTransform: 'uppercase' }}>Total Services</span>
+              <h3 style={{ fontSize: '28px', fontWeight: '800', color: '#0f172a', marginTop: '4px' }}>{adminStats?.totalServices || services.length}</h3>
+            </div>
+            <div style={{ background: '#f0fdf4', padding: '18px', borderRadius: '12px', border: '1px solid #a7f3d0' }}>
+              <span style={{ fontSize: '11px', fontWeight: '700', color: '#065f46', textTransform: 'uppercase' }}>Verified Official</span>
+              <h3 style={{ fontSize: '28px', fontWeight: '800', color: '#059669', marginTop: '4px' }}>{adminStats?.verifiedServices || 12}</h3>
+            </div>
+            <div style={{ background: '#fffbeb', padding: '18px', borderRadius: '12px', border: '1px solid #fde68a' }}>
+              <span style={{ fontSize: '11px', fontWeight: '700', color: '#92400e', textTransform: 'uppercase' }}>Pending Review</span>
+              <h3 style={{ fontSize: '28px', fontWeight: '800', color: '#d97706', marginTop: '4px' }}>{adminStats?.pendingReview || 0}</h3>
+            </div>
+            <div style={{ background: '#fff', padding: '18px', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
+              <span style={{ fontSize: '11px', fontWeight: '700', color: '#64748b', textTransform: 'uppercase' }}>Audit Records</span>
+              <h3 style={{ fontSize: '28px', fontWeight: '800', color: '#475569', marginTop: '4px' }}>{adminStats?.totalAuditRecords || 2}</h3>
+            </div>
+          </div>
+
+          <div style={{ background: '#fff', borderRadius: '16px', border: '1px solid #e2e8f0', overflow: 'hidden' }}>
+            <div style={{ padding: '16px 20px', borderBottom: '1px solid #e2e8f0' }}>
+              <h4 style={{ fontWeight: '700', color: '#0f2744' }}>Cataloged Services & Verification Audits</h4>
+            </div>
+            <div style={{ overflowX: 'auto' }}>
+              <table className="civic-table">
+                <thead>
                   <tr>
-                    <th style={{ padding: '14px 18px' }}>{t('colService')}</th>
-                    <th style={{ padding: '14px 18px' }}>{t('colRefNum')}</th>
-                    <th style={{ padding: '14px 18px' }}>{t('colStatus')}</th>
-                    <th style={{ padding: '14px 18px' }}>{t('colDate')}</th>
-                    <th style={{ padding: '14px 18px' }}>{t('colActions')}</th>
+                    <th>Service Title</th>
+                    <th>Category</th>
+                    <th>Status</th>
+                    <th>Last Checked</th>
+                    <th>Action</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {applications.map(app => (
-                    <tr key={app.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                      <td style={{ padding: '14px 18px', fontWeight: '600' }}>{app.service_title || app.service_id}</td>
-                      <td style={{ padding: '14px 18px', fontFamily: 'monospace', color: '#0f2744', fontWeight: '700' }}>
-                        {app.application_reference_number}
-                      </td>
-                      <td style={{ padding: '14px 18px' }}>
-                        <span style={{
-                          padding: '4px 10px', borderRadius: '999px', fontSize: '11px', fontWeight: '700',
-                          background: app.status === 'APPROVED' ? '#dcfce7' : app.status === 'UNDER_REVIEW' ? '#fef3c7' : '#eff6ff',
-                          color: app.status === 'APPROVED' ? '#166534' : app.status === 'UNDER_REVIEW' ? '#92400e' : '#1e40af'
-                        }}>
-                          {app.status}
+                  {services.map(s => (
+                    <tr key={s.id}>
+                      <td><strong>{s.title}</strong></td>
+                      <td>{s.category}</td>
+                      <td>
+                        <span className={`verification-pill ${s.verification_status === 'VERIFIED' ? 'verified' : 'unverified'}`} style={{ margin: 0, display: 'inline-flex' }}>
+                          {s.verification_status}
                         </span>
                       </td>
-                      <td style={{ padding: '14px 18px', color: '#64748b' }}>{app.created_at ? app.created_at.split('T')[0] : '2026-09-27'}</td>
-                      <td style={{ padding: '14px 18px' }}>
+                      <td>{s.last_verified}</td>
+                      <td>
                         <button
+                          className="btn-secondary"
+                          style={{ padding: '4px 8px', fontSize: '11px' }}
                           onClick={async () => {
-                            try {
-                              await api(`/applications/${app.id}`, { method: 'DELETE' });
-                              setApplications(applications.filter(a => a.id !== app.id));
-                              showToast('Application record removed');
-                            } catch (e) {
-                              showToast(e.message, 'error');
-                            }
+                            const findings = prompt('Enter administrative verification finding:');
+                            if (!findings) return;
+                            await api(`/admin/services/${s.id}/verify`, {
+                              method: 'POST',
+                              body: JSON.stringify({
+                                status: 'VERIFIED',
+                                findings: findings,
+                                source_url: s.official_url
+                              })
+                            });
+                            showToast('Verification record logged');
+                            api('/services').then(res => setServices(res.data || []));
                           }}
-                          style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontWeight: '600' }}
                         >
-                          ✕ Delete
+                          Verify Source ↗
                         </button>
                       </td>
                     </tr>
@@ -965,540 +824,492 @@ export function CivicApp() {
                 </tbody>
               </table>
             </div>
-          )}
-        </div>
+          </div>
+        </main>
       )}
 
-      {/* TAB 3: REMINDERS */}
-      {activeTab === 'reminders' && (
-        <div className="container" style={{ padding: '36px 0' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
-            <div>
-              <h2 style={{ fontSize: '24px', fontWeight: '800', color: '#0f172a' }}>{t('remindersTitle')}</h2>
-              <p style={{ color: '#64748b', fontSize: '14px' }}>{t('remindersSubtitle')}</p>
-            </div>
-            <button className="btn-primary" onClick={() => setIsNewReminderOpen(true)}>
-              {t('btnNewReminder')}
-            </button>
-          </div>
-
-          {reminders.length === 0 ? (
-            <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: '16px', padding: '48px', textAlign: 'center' }}>
-              <div style={{ fontSize: '48px', marginBottom: '16px' }}>🔔</div>
-              <h3 style={{ fontSize: '18px', fontWeight: '700', marginBottom: '8px' }}>{t('emptyReminders')}</h3>
-            </div>
-          ) : (
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '16px' }}>
-              {reminders.map(rem => (
-                <div key={rem.id} style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '20px' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
-                    <h4 style={{ fontSize: '16px', fontWeight: '700', color: '#0f2744' }}>{rem.title}</h4>
-                    <span style={{ fontSize: '12px', color: '#ef4444', fontWeight: '700', background: '#fef2f2', padding: '3px 8px', borderRadius: '6px' }}>
-                      📅 {rem.reminder_date}
-                    </span>
-                  </div>
-                  {rem.notes && <p style={{ fontSize: '13px', color: '#64748b', marginBottom: '12px' }}>{rem.notes}</p>}
-                  <button
-                    onClick={async () => {
-                      try {
-                        await api(`/reminders/${rem.id}`, { method: 'DELETE' });
-                        setReminders(reminders.filter(r => r.id !== rem.id));
-                        showToast('Reminder dismissed');
-                      } catch (e) {
-                        showToast(e.message, 'error');
-                      }
-                    }}
-                    style={{ background: 'none', border: 'none', color: '#64748b', cursor: 'pointer', fontSize: '12px', fontWeight: '600' }}
-                  >
-                    ✓ Dismiss
-                  </button>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* TAB 4: ADMIN CONSOLE */}
-      {activeTab === 'admin' && currentUser?.role === 'admin' && (
-        <div className="container" style={{ padding: '36px 0' }}>
-          <div style={{ marginBottom: '24px' }}>
-            <h2 style={{ fontSize: '24px', fontWeight: '800', color: '#0f172a' }}>{t('adminTitle')}</h2>
-            <p style={{ color: '#64748b', fontSize: '14px' }}>{t('adminSubtitle')}</p>
-          </div>
-
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '16px', marginBottom: '32px' }}>
-            <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '20px', textAlign: 'center' }}>
-              <div style={{ fontSize: '28px', fontWeight: '800', color: '#0f2744' }}>{adminStats?.totalServices || 12}</div>
-              <div style={{ fontSize: '12px', color: '#64748b', fontWeight: '600', textTransform: 'uppercase' }}>{t('statTotalServices')}</div>
-            </div>
-            <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '20px', textAlign: 'center' }}>
-              <div style={{ fontSize: '28px', fontWeight: '800', color: '#10b981' }}>{adminStats?.verifiedServices || 12}</div>
-              <div style={{ fontSize: '12px', color: '#64748b', fontWeight: '600', textTransform: 'uppercase' }}>{t('statVerified')}</div>
-            </div>
-            <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '20px', textAlign: 'center' }}>
-              <div style={{ fontSize: '28px', fontWeight: '800', color: '#f59e0b' }}>{adminStats?.pendingReview || 0}</div>
-              <div style={{ fontSize: '12px', color: '#64748b', fontWeight: '600', textTransform: 'uppercase' }}>{t('statPending')}</div>
-            </div>
-            <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '20px', textAlign: 'center' }}>
-              <div style={{ fontSize: '28px', fontWeight: '800', color: '#7c3aed' }}>{adminStats?.totalAuditRecords || 24}</div>
-              <div style={{ fontSize: '12px', color: '#64748b', fontWeight: '600', textTransform: 'uppercase' }}>{t('statAudits')}</div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* SERVICE DETAIL MODAL */}
+      {/* SERVICE DETAIL MODAL WITH EXTRA GRAPHICS */}
       {selectedService && (
-        <div className="modal-backdrop" onClick={() => setSelectedService(null)}>
-          <div className="modal-dialog" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-backdrop" onClick={(e) => { if (e.target.className === 'modal-backdrop') setSelectedService(null); }}>
+          <div className="modal-dialog">
             <div className="modal-header">
-              <div>
-                <span className="service-badge-category">{selectedService.category}</span>
-                <h2 style={{ fontSize: '20px', fontWeight: '800', color: '#0f172a', marginTop: '6px' }}>
-                  {selectedService.title}
-                </h2>
-              </div>
-              <button className="modal-close-btn" onClick={() => setSelectedService(null)}>✕</button>
+              <h3 className="modal-title">{selectedService.title}</h3>
+              <button className="close-btn" onClick={() => setSelectedService(null)}>✕</button>
             </div>
 
             <div className="modal-tabs">
-              <button
-                className={`modal-tab-btn ${modalTab === 'overview' ? 'active' : ''}`}
-                onClick={() => setModalTab('overview')}
-              >
-                {t('tabOverview')}
+              <button className={`modal-tab-btn ${modalTab === 'overview' ? 'active' : ''}`} onClick={() => setModalTab('overview')}>
+                Overview
               </button>
-              <button
-                className={`modal-tab-btn ${modalTab === 'checklist' ? 'active' : ''}`}
-                onClick={() => setModalTab('checklist')}
-              >
-                {t('tabChecklist')}
+              <button className={`modal-tab-btn ${modalTab === 'documents' ? 'active' : ''}`} onClick={() => setModalTab('documents')}>
+                Required Documents ({selectedService.documents?.length || 0})
               </button>
-              <button
-                className={`modal-tab-btn ${modalTab === 'steps' ? 'active' : ''}`}
-                onClick={() => setModalTab('steps')}
-              >
-                {t('tabSteps')}
+              <button className={`modal-tab-btn ${modalTab === 'steps' ? 'active' : ''}`} onClick={() => setModalTab('steps')}>
+                Step-by-Step Procedure ({selectedService.steps?.length || 0})
               </button>
-              <button
-                className={`modal-tab-btn ${modalTab === 'sources' ? 'active' : ''}`}
-                onClick={() => setModalTab('sources')}
-              >
-                {t('tabSources')}
+              <button className={`modal-tab-btn ${modalTab === 'sources' ? 'active' : ''}`} onClick={() => setModalTab('sources')}>
+                Official Sources ({selectedService.sources?.length || 0})
+              </button>
+              <button className={`modal-tab-btn ${modalTab === 'faqs' ? 'active' : ''}`} onClick={() => setModalTab('faqs')}>
+                FAQs ({selectedService.faqs?.length || 0})
               </button>
             </div>
 
             <div className="modal-body">
               {modalTab === 'overview' && (
                 <div>
-                  <p style={{ fontSize: '14px', lineHeight: 1.7, color: '#334155', marginBottom: '20px' }}>
-                    {selectedService.description}
-                  </p>
-
-                  <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '16px', marginBottom: '20px' }}>
-                    <div style={{ fontWeight: '700', color: '#0f2744', marginBottom: '6px' }}>{t('lblEligibility')}</div>
-                    <p style={{ fontSize: '13px', color: '#475569' }}>{selectedService.eligibility_criteria || 'Indian Citizens meeting age and residential jurisdiction requirements.'}</p>
+                  <div style={{ marginBottom: '20px' }}>
+                    <h4 style={{ fontWeight: '700', color: '#0f2744', marginBottom: '8px' }}>Official Summary</h4>
+                    <p style={{ fontSize: '14px', color: '#475569', lineHeight: '1.6' }}>{selectedService.description}</p>
                   </div>
 
-                  <div style={{ background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: '12px', padding: '16px' }}>
-                    <div style={{ fontWeight: '700', color: '#1e40af', marginBottom: '6px' }}>{t('lblGovFee')}</div>
-                    <p style={{ fontSize: '14px', fontWeight: '700', color: '#0f2744' }}>{selectedService.fee_structure}</p>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '20px', background: '#f8fafc', padding: '16px', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
+                    <div>
+                      <span style={{ fontSize: '11px', textTransform: 'uppercase', fontWeight: '700', color: '#64748b' }}>Statutory Fees</span>
+                      <p style={{ fontSize: '14px', fontWeight: '700', color: '#0f172a', marginTop: '2px' }}>{selectedService.fee_structure}</p>
+                    </div>
+                    <div>
+                      <span style={{ fontSize: '11px', textTransform: 'uppercase', fontWeight: '700', color: '#64748b' }}>Processing Timeline</span>
+                      <p style={{ fontSize: '14px', fontWeight: '700', color: '#0f172a', marginTop: '2px' }}>{selectedService.processing_time}</p>
+                    </div>
+                    <div>
+                      <span style={{ fontSize: '11px', textTransform: 'uppercase', fontWeight: '700', color: '#64748b' }}>Who is Eligible</span>
+                      <p style={{ fontSize: '13px', color: '#334155', marginTop: '2px' }}>{selectedService.eligibility_criteria}</p>
+                    </div>
+                    <div>
+                      <span style={{ fontSize: '11px', textTransform: 'uppercase', fontWeight: '700', color: '#64748b' }}>Application Mode & State</span>
+                      <p style={{ fontSize: '13px', fontWeight: '600', color: '#334155', marginTop: '2px' }}>{selectedService.application_mode} • {selectedService.state}</p>
+                    </div>
+                  </div>
+
+                  <div style={{ background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: '12px', padding: '16px', marginBottom: '24px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '10px' }}>
+                      <div>
+                        <span style={{ fontSize: '11px', fontWeight: '700', color: '#1e40af', textTransform: 'uppercase' }}>Official Verified Government Portal</span>
+                        <p style={{ fontSize: '14px', fontWeight: '700', color: '#1e3a8a' }}>{selectedService.official_url}</p>
+                      </div>
+                      <a
+                        href={selectedService.official_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="btn-primary"
+                        style={{ background: '#1e40af', borderColor: '#1d4ed8' }}
+                      >
+                        Visit Official Portal ↗
+                      </a>
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'flex', gap: '10px' }}>
+                    <button
+                      className="btn-primary"
+                      onClick={async () => {
+                        await api('/applications', {
+                          method: 'POST',
+                          body: JSON.stringify({ service_id: selectedService.id, service_title: selectedService.title })
+                        });
+                        showToast(`Added ${selectedService.title} to tracker!`, 'success');
+                        setSelectedService(null);
+                        setActiveTab('applications');
+                      }}
+                    >
+                      ➕ Track This Application
+                    </button>
+                    <button
+                      className="btn-gold"
+                      onClick={() => {
+                        setIsAiOpen(true);
+                        handleSendMessage(`Explain documents and steps for ${selectedService.title}`, selectedService.id);
+                      }}
+                    >
+                      ✨ Ask AI Assistant
+                    </button>
                   </div>
                 </div>
               )}
 
-              {modalTab === 'checklist' && (
+              {modalTab === 'documents' && (
                 <div>
-                  <h4 style={{ fontSize: '16px', fontWeight: '700', marginBottom: '4px' }}>{t('docsChecklistTitle')}</h4>
-                  <p style={{ fontSize: '13px', color: '#64748b', marginBottom: '16px' }}>{t('checklistSubtitle')}</p>
-
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                    {(selectedService.required_documents || [
-                      { document_name: 'Proof of Identity (Aadhaar / Voter ID / PAN)', mandatory: true },
-                      { document_name: 'Proof of Address (Electricity bill / Passport / Bank Passbook)', mandatory: true },
-                      { document_name: 'Proof of Date of Birth (Birth Certificate / SSC Certificate)', mandatory: true },
-                      { document_name: 'Recent Passport Size Color Photographs (35mm x 45mm)', mandatory: true }
-                    ]).map((doc, idx) => (
-                      <div key={idx} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px' }}>
-                        <div>
-                          <div style={{ fontSize: '13px', fontWeight: '700', color: '#0f172a' }}>{doc.document_name}</div>
-                          {doc.mandatory && <span style={{ fontSize: '10px', color: '#ef4444', fontWeight: '700' }}>* MANDATORY</span>}
-                        </div>
-                        <span style={{ fontSize: '12px', fontWeight: '700', color: '#10b981', background: '#ecfdf5', padding: '4px 8px', borderRadius: '6px' }}>
-                          ✓ {t('statusReady')}
-                        </span>
+                  <p style={{ fontSize: '13px', color: '#64748b', marginBottom: '16px' }}>
+                    Prepare these verified mandatory documents before initiating your application. Click to mark readiness:
+                  </p>
+                  {(selectedService.documents || []).map((d, i) => (
+                    <div key={d.id} className="doc-item-row">
+                      <div
+                        className="doc-check-box"
+                        onClick={(e) => e.currentTarget.classList.toggle('ready')}
+                      >
+                        ✓
                       </div>
-                    ))}
-                  </div>
+                      <div className="doc-info-col">
+                        <h4>{i + 1}. {d.document_name}</h4>
+                        <p>{d.purpose}</p>
+                        <div className="doc-meta-tags">
+                          <span className="doc-badge">Format: {d.accepted_formats || 'PDF/Scan'}</span>
+                          <span className="doc-badge">{d.is_original_required ? '⚠️ Original Required' : 'Self-attested Copy'}</span>
+                          {d.notes && <span className="doc-badge" style={{ background: '#fef3c7', color: '#92400e' }}>{d.notes}</span>}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               )}
 
               {modalTab === 'steps' && (
                 <div>
-                  <h4 style={{ fontSize: '16px', fontWeight: '700', marginBottom: '4px' }}>{t('timelineStepsTitle')}</h4>
-                  <p style={{ fontSize: '13px', color: '#64748b', marginBottom: '16px' }}>{t('timelineSubtitle')}</p>
-
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                    {(selectedService.application_steps || [
-                      { step_number: 1, title: 'Portal Registration & Online Form Filling', description: 'Visit verified government portal, register using email/mobile and fill application details.' },
-                      { step_number: 2, title: 'Document Upload & Scrutiny', description: 'Attach scanned clear copies of mandatory identity, address, and date of birth proofs.' },
-                      { step_number: 3, title: 'Statutory Fee Payment & Appointment Slot', description: 'Pay the exact statutory government fee via SBI ePay/UPI and schedule verification slot.' },
-                      { step_number: 4, title: 'In-Person Biometric Verification & Delivery', description: 'Attend appointment at center. Certificate or document dispatched via India Speed Post.' }
-                    ]).map((step, idx) => (
-                      <div key={idx} style={{ display: 'flex', gap: '14px', alignItems: 'flex-start' }}>
-                        <div style={{ width: '28px', height: '28px', borderRadius: '50%', background: '#0f2744', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: '700', fontSize: '12px', flexShrink: 0 }}>
-                          {step.step_number || idx + 1}
+                  <p style={{ fontSize: '13px', color: '#64748b', marginBottom: '16px' }}>
+                    Follow these sequential stages on the authorized government portal:
+                  </p>
+                  {(selectedService.steps || []).map(step => (
+                    <div key={step.id} className="step-item-card">
+                      <div className="step-number-bubble">{step.step_number}</div>
+                      <div className="step-content">
+                        <h4>{step.title}</h4>
+                        <p>{step.description}</p>
+                        <div style={{ display: 'flex', gap: '8px', marginTop: '6px', fontSize: '11px', color: '#64748b' }}>
+                          <span>⏱️ Est. Time: {step.estimated_time || '1 day'}</span>
+                          <span>•</span>
+                          <span>{step.is_online_step ? '🌐 Online Submission' : '🏛️ Physical Counter Visit'}</span>
                         </div>
-                        <div>
-                          <div style={{ fontSize: '14px', fontWeight: '700', color: '#0f172a' }}>{step.title}</div>
-                          <div style={{ fontSize: '13px', color: '#64748b', marginTop: '2px' }}>{step.description}</div>
-                        </div>
+                        {step.tips && (
+                          <div className="step-tip">💡 <strong>Citizen Tip:</strong> {step.tips}</div>
+                        )}
                       </div>
-                    ))}
-                  </div>
+                    </div>
+                  ))}
                 </div>
               )}
 
               {modalTab === 'sources' && (
                 <div>
-                  <h4 style={{ fontSize: '16px', fontWeight: '700', marginBottom: '4px' }}>{t('sourcesTitle')}</h4>
-                  <p style={{ fontSize: '13px', color: '#64748b', marginBottom: '16px' }}>{t('sourcesSubtitle')}</p>
-
-                  <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '16px', marginBottom: '16px' }}>
-                    <div style={{ fontSize: '12px', fontWeight: '700', color: '#64748b', textTransform: 'uppercase', marginBottom: '4px' }}>Official Portal Link</div>
-                    <a
-                      href={selectedService.official_url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      style={{ fontSize: '14px', fontWeight: '700', color: '#2563eb', textDecoration: 'none', wordBreak: 'break-all' }}
-                    >
-                      {selectedService.official_url} ↗
-                    </a>
-                  </div>
-
-                  <a
-                    href={selectedService.official_url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="btn-primary"
-                    style={{ display: 'inline-flex', width: '100%', justifyContent: 'center', textDecoration: 'none' }}
-                  >
-                    <span>🌐</span> {t('btnVisitPortal')}
-                  </a>
-                </div>
-              )}
-            </div>
-
-            <div className="modal-footer">
-              <button className="btn-secondary" onClick={() => setSelectedService(null)}>
-                {t('btnClose')}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* GUIDANCE WIZARD MODAL */}
-      {isWizardOpen && (
-        <div className="modal-backdrop" onClick={() => setIsWizardOpen(false)}>
-          <div className="modal-dialog" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <div>
-                <h3 style={{ fontSize: '18px', fontWeight: '800', color: '#0f172a' }}>{t('wizardTitle')}</h3>
-                <p style={{ fontSize: '12px', color: '#64748b' }}>{t('wizardSubtitle')}</p>
-              </div>
-              <button className="modal-close-btn" onClick={() => setIsWizardOpen(false)}>✕</button>
-            </div>
-
-            <div className="modal-body">
-              <div className="form-group" style={{ marginBottom: '14px' }}>
-                <label>{t('wizStateLbl')}</label>
-                <select value={wizState} onChange={(e) => setWizState(e.target.value)} className="form-control">
-                  <option value="Telangana">Telangana</option>
-                  <option value="Andhra Pradesh">Andhra Pradesh</option>
-                  <option value="Maharashtra">Maharashtra</option>
-                  <option value="Karnataka">Karnataka</option>
-                  <option value="Delhi">Delhi</option>
-                </select>
-              </div>
-
-              <div className="form-group" style={{ marginBottom: '14px' }}>
-                <label>{t('wizAgeLbl')}</label>
-                <select value={wizAge} onChange={(e) => setWizAge(e.target.value)} className="form-control">
-                  <option value="ADULT_18_59">{t('wizAgeAdult')}</option>
-                  <option value="MINOR_UNDER_18">{t('wizAgeMinor')}</option>
-                  <option value="SENIOR_60_PLUS">{t('wizAgeSenior')}</option>
-                </select>
-              </div>
-
-              <div className="form-group" style={{ marginBottom: '14px' }}>
-                <label>{t('wizOccLbl')}</label>
-                <select value={wizOcc} onChange={(e) => setWizOcc(e.target.value)} className="form-control">
-                  <option value="CITIZEN">{t('wizOccCitizen')}</option>
-                  <option value="STUDENT">{t('wizOccStudent')}</option>
-                  <option value="BUSINESS">{t('wizOccBusiness')}</option>
-                  <option value="GOVERNMENT">{t('wizOccGovt')}</option>
-                </select>
-              </div>
-
-              <div className="form-group" style={{ marginBottom: '20px' }}>
-                <label>{t('wizServiceLbl')}</label>
-                <select value={wizService} onChange={(e) => setWizService(e.target.value)} className="form-control">
-                  {services.map(s => (
-                    <option key={s.id} value={s.id}>{s.title}</option>
-                  ))}
-                </select>
-              </div>
-
-              <button
-                className="btn-primary"
-                style={{ width: '100%' }}
-                onClick={handleGenerateGuidance}
-                disabled={isWizLoading}
-              >
-                {isWizLoading ? 'Analyzing Government Gazette Rules...' : t('btnGenerateGuidance')}
-              </button>
-
-              {wizResult && (
-                <div style={{ marginTop: '24px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '16px' }}>
-                  <h4 style={{ fontSize: '15px', fontWeight: '700', color: '#0f2744', marginBottom: '8px' }}>
-                    {t('wizardResultTitle')}
-                  </h4>
-                  <ul style={{ paddingLeft: '20px', fontSize: '13px', lineHeight: 1.7, color: '#334155' }}>
-                    {(wizResult.personalizedChecklist || []).map((item, i) => (
-                      <li key={i}>{item}</li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* TRACK NEW APPLICATION MODAL */}
-      {isNewAppOpen && (
-        <div className="modal-backdrop" onClick={() => setIsNewAppOpen(false)}>
-          <div className="modal-dialog" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <h3 style={{ fontSize: '18px', fontWeight: '800', color: '#0f172a' }}>{t('modalNewAppTitle')}</h3>
-              <button className="modal-close-btn" onClick={() => setIsNewAppOpen(false)}>✕</button>
-            </div>
-            <form onSubmit={handleCreateApplication} className="modal-body">
-              <div className="form-group" style={{ marginBottom: '14px' }}>
-                <label>{t('lblSelectService')}</label>
-                <select
-                  value={newAppServiceId}
-                  onChange={(e) => setNewAppServiceId(e.target.value)}
-                  className="form-control"
-                  required
-                >
-                  <option value="">-- Choose Government Service --</option>
-                  {services.map(s => (
-                    <option key={s.id} value={s.id}>{s.title}</option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="form-group" style={{ marginBottom: '14px' }}>
-                <label>{t('lblRefNumber')}</label>
-                <input
-                  type="text"
-                  className="form-control"
-                  placeholder="e.g. ARN-2026-981245"
-                  value={newAppRef}
-                  onChange={(e) => setNewAppRef(e.target.value)}
-                  required
-                />
-              </div>
-
-              <div className="form-group" style={{ marginBottom: '20px' }}>
-                <label>{t('lblInitialStatus')}</label>
-                <select
-                  value={newAppStatus}
-                  onChange={(e) => setNewAppStatus(e.target.value)}
-                  className="form-control"
-                >
-                  <option value="SUBMITTED">{t('statusSubmitted')}</option>
-                  <option value="UNDER_REVIEW">{t('statusUnderReview')}</option>
-                  <option value="APPROVED">{t('statusApproved')}</option>
-                  <option value="ACTION_REQUIRED">{t('statusActionRequired')}</option>
-                </select>
-              </div>
-
-              <button type="submit" className="btn-primary" style={{ width: '100%' }}>
-                {t('btnSaveApp')}
-              </button>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* NEW REMINDER MODAL */}
-      {isNewReminderOpen && (
-        <div className="modal-backdrop" onClick={() => setIsNewReminderOpen(false)}>
-          <div className="modal-dialog" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <h3 style={{ fontSize: '18px', fontWeight: '800', color: '#0f172a' }}>{t('modalNewReminderTitle')}</h3>
-              <button className="modal-close-btn" onClick={() => setIsNewReminderOpen(false)}>✕</button>
-            </div>
-            <form onSubmit={handleCreateReminder} className="modal-body">
-              <div className="form-group" style={{ marginBottom: '14px' }}>
-                <label>{t('lblReminderTitle')}</label>
-                <input
-                  type="text"
-                  className="form-control"
-                  placeholder="e.g. Renew Driving Licence"
-                  value={newRemTitle}
-                  onChange={(e) => setNewRemTitle(e.target.value)}
-                  required
-                />
-              </div>
-
-              <div className="form-group" style={{ marginBottom: '14px' }}>
-                <label>{t('lblDueDate')}</label>
-                <input
-                  type="date"
-                  className="form-control"
-                  value={newRemDate}
-                  onChange={(e) => setNewRemDate(e.target.value)}
-                  required
-                />
-              </div>
-
-              <div className="form-group" style={{ marginBottom: '20px' }}>
-                <label>{t('lblNotes')}</label>
-                <textarea
-                  className="form-control"
-                  rows="3"
-                  placeholder="Documents needed or reference notes..."
-                  value={newRemNotes}
-                  onChange={(e) => setNewRemNotes(e.target.value)}
-                ></textarea>
-              </div>
-
-              <button type="submit" className="btn-primary" style={{ width: '100%' }}>
-                {t('btnSaveReminder')}
-              </button>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* ASK CIVIC AI DRAWER */}
-      {isAiOpen && (
-        <div className="modal-backdrop" onClick={() => setIsAiOpen(false)}>
-          <div
-            style={{
-              position: 'fixed',
-              top: 0,
-              right: 0,
-              bottom: 0,
-              width: '100%',
-              maxWidth: '460px',
-              background: '#ffffff',
-              boxShadow: '-4px 0 24px rgba(0,0,0,0.15)',
-              zIndex: 1000,
-              display: 'flex',
-              flexDirection: 'column'
-            }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div style={{ padding: '16px 20px', borderBottom: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#0f2744', color: '#fff' }}>
-              <div>
-                <h3 style={{ fontSize: '16px', fontWeight: '800' }}>✨ {t('chatTitle')}</h3>
-                <p style={{ fontSize: '11px', color: '#94a3b8' }}>{t('chatSubtitle')}</p>
-              </div>
-              <button
-                onClick={() => setIsAiOpen(false)}
-                style={{ background: 'none', border: 'none', color: '#fff', fontSize: '18px', cursor: 'pointer' }}
-              >
-                ✕
-              </button>
-            </div>
-
-            {/* Quick Prompt Chips */}
-            <div style={{ padding: '10px 14px', background: '#f8fafc', borderBottom: '1px solid #e2e8f0', display: 'flex', gap: '6px', overflowX: 'auto' }}>
-              {[t('chatQuick1'), t('chatQuick2'), t('chatQuick3'), t('chatQuick4')].map((p, i) => (
-                <button
-                  key={i}
-                  onClick={() => handleSendMessage(p)}
-                  style={{
-                    whiteSpace: 'nowrap',
-                    fontSize: '11px',
-                    fontWeight: '600',
-                    background: '#fff',
-                    border: '1px solid #cbd5e1',
-                    borderRadius: '999px',
-                    padding: '4px 10px',
-                    cursor: 'pointer'
-                  }}
-                >
-                  {p}
-                </button>
-              ))}
-            </div>
-
-            {/* Messages Container */}
-            <div style={{ flex: 1, overflowY: 'auto', padding: '16px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
-              {chatMessages.map((msg, i) => (
-                <div
-                  key={i}
-                  style={{
-                    alignSelf: msg.role === 'user' ? 'flex-end' : 'flex-start',
-                    maxWidth: '85%',
-                    background: msg.role === 'user' ? '#0f2744' : '#f1f5f9',
-                    color: msg.role === 'user' ? '#ffffff' : '#0f172a',
-                    padding: '12px 16px',
-                    borderRadius: msg.role === 'user' ? '14px 14px 2px 14px' : '14px 14px 14px 2px',
-                    fontSize: '13px',
-                    lineHeight: 1.6
-                  }}
-                >
-                  <p style={{ whiteSpace: 'pre-line' }}>{msg.text}</p>
-                  {msg.sources && msg.sources.length > 0 && (
-                    <div style={{ marginTop: '8px', paddingTop: '8px', borderTop: '1px solid rgba(0,0,0,0.06)', fontSize: '11px', color: '#475569' }}>
-                      <span style={{ fontWeight: '700' }}>Sources: </span>
-                      {msg.sources.map((s, idx) => (
-                        <span key={idx} style={{ marginRight: '6px' }}>• {s.authority || s.title}</span>
-                      ))}
+                  <p style={{ fontSize: '13px', color: '#64748b', marginBottom: '16px' }}>
+                    Every procedure on CivicGuide AI is grounded directly in gazetted government portals and statutory rules:
+                  </p>
+                  {(selectedService.sources || []).map(src => (
+                    <div key={src.id} style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '16px', marginBottom: '12px' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '6px' }}>
+                        <h4 style={{ fontSize: '14px', fontWeight: '700', color: '#0f2744' }}>{src.authority_name}</h4>
+                        <span style={{ fontSize: '10px', fontWeight: '700', background: '#ecfdf5', color: '#065f46', padding: '2px 8px', borderRadius: '999px' }}>
+                          {src.verification_badge || 'OFFICIAL_VERIFIED'}
+                        </span>
+                      </div>
+                      <p style={{ fontSize: '12px', color: '#475569', marginBottom: '8px' }}>{src.citation_text}</p>
+                      <div style={{ fontSize: '11px', color: '#64748b', display: 'flex', justifyContent: 'space-between' }}>
+                        <a href={src.source_url} target="_blank" rel="noopener noreferrer" style={{ color: '#2563eb', fontWeight: '600', textDecoration: 'none' }}>
+                          Verify at: {src.source_url} ↗
+                        </a>
+                        <span>Checked: {src.last_checked_date}</span>
+                      </div>
                     </div>
-                  )}
-                </div>
-              ))}
-              {isChatLoading && (
-                <div style={{ alignSelf: 'flex-start', background: '#f1f5f9', padding: '10px 14px', borderRadius: '12px', fontSize: '12px', color: '#64748b' }}>
-                  Searching verified government records...
+                  ))}
                 </div>
               )}
-            </div>
 
-            {/* Input area */}
-            <div style={{ padding: '12px 16px', borderTop: '1px solid #e2e8f0', display: 'flex', gap: '8px' }}>
-              <input
-                type="text"
-                className="form-control"
-                placeholder={t('chatPlaceholder')}
-                value={chatInput}
-                onChange={(e) => setChatInput(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') handleSendMessage();
-                }}
-              />
-              <button
-                className="btn-primary"
-                onClick={() => handleSendMessage()}
-                disabled={isChatLoading || !chatInput.trim()}
-              >
-                {t('chatSendBtn')}
-              </button>
+              {modalTab === 'faqs' && (
+                <div>
+                  {(selectedService.faqs || []).map(f => (
+                    <div key={f.id} style={{ marginBottom: '16px', background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '10px', padding: '14px' }}>
+                      <h4 style={{ fontSize: '14px', fontWeight: '700', color: '#0f172a', marginBottom: '6px' }}>Q: {f.question}</h4>
+                      <p style={{ fontSize: '13px', color: '#475569', lineHeight: '1.5' }}>{f.answer}</p>
+                      {f.official_reference && (
+                        <span style={{ fontSize: '10px', color: '#64748b', display: 'block', marginTop: '6px' }}>Ref: {f.official_reference}</span>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         </div>
       )}
 
-      {/* Toast Alert */}
+      {/* CHAT DRAWER: AI CIVIC ASSISTANT */}
+      <div className={`chat-drawer ${isAiOpen ? 'open' : ''}`}>
+        <div className="modal-header">
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <span style={{ fontSize: '18px' }}>✨</span>
+            <h3 className="modal-title" style={{ fontSize: '16px' }}>CivicGuide AI Assistant</h3>
+          </div>
+          <button className="close-btn" onClick={() => setIsAiOpen(false)}>✕</button>
+        </div>
+
+        <div className="chat-prompt-chips">
+          {['What documents are needed for passport?', 'How much is driving licence fee?', 'Explain Non-ECR vs ECR', 'What is MeeSeva?'].map(prompt => (
+            <button
+              key={prompt}
+              className="prompt-chip-btn"
+              onClick={() => handleSendMessage(prompt)}
+            >
+              {prompt}
+            </button>
+          ))}
+        </div>
+
+        <div className="chat-messages">
+          {chatMessages.map((m, idx) => (
+            <div key={idx} className={`msg-bubble ${m.role === 'user' ? 'user' : 'assistant'}`}>
+              <div style={{ whiteSpace: 'pre-wrap' }}>{m.text}</div>
+              {m.sources && m.sources.length > 0 && (
+                <div style={{ marginTop: '10px', paddingTop: '8px', borderTop: '1px solid #cbd5e1', fontSize: '11px' }}>
+                  <strong>Verified Sources:</strong>
+                  {m.sources.map((src, i) => (
+                    <div key={i} style={{ marginTop: '2px' }}>
+                      <a href={src.url} target="_blank" rel="noopener noreferrer" style={{ color: '#0284c7', textDecoration: 'none' }}>
+                        • {src.title} ({src.lastVerified})
+                      </a>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          ))}
+          {isChatLoading && (
+            <div className="msg-bubble assistant" style={{ color: '#64748b' }}>
+              <span>Analyzing verified government gazettes and rules...</span>
+            </div>
+          )}
+        </div>
+
+        <div className="chat-input-area">
+          <input
+            type="text"
+            className="form-control"
+            placeholder="Ask a government service question..."
+            value={chatInput}
+            onChange={(e) => setChatInput(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') handleSendMessage(); }}
+          />
+          <button className="btn-primary" onClick={() => handleSendMessage()} style={{ padding: '10px 18px' }}>
+            Send
+          </button>
+        </div>
+      </div>
+
+      {/* PERSONALIZED WIZARD MODAL */}
+      {isWizardOpen && (
+        <div className="modal-backdrop" onClick={(e) => { if (e.target.className === 'modal-backdrop') setIsWizardOpen(false); }}>
+          <div className="modal-dialog">
+            <div className="modal-header">
+              <h3 className="modal-title">✨ Personalized Checklist Wizard</h3>
+              <button className="close-btn" onClick={() => setIsWizardOpen(false)}>✕</button>
+            </div>
+            <div className="modal-body">
+              <form onSubmit={async (e) => {
+                e.preventDefault();
+                const f = e.target;
+                const serviceId = f.wizService.value;
+                const stateVal = f.wizState.value;
+                const ageGroup = f.wizAge.value;
+                const occupation = f.wizOcc.value;
+
+                try {
+                  const res = await api('/ai/guidance', {
+                    method: 'POST',
+                    body: JSON.stringify({ serviceId, state: stateVal, ageGroup, occupation })
+                  });
+                  alert(`Personalized checklist generated with ${res.personalizedChecklist.length} steps!`);
+                } catch (err) {
+                  showToast(err.message, 'error');
+                }
+              }}>
+                <div className="form-group">
+                  <label className="form-label">Select Government Service</label>
+                  <select name="wizService" className="form-control" required>
+                    {services.map(s => <option key={s.id} value={s.id}>{s.title}</option>)}
+                  </select>
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Your State / UT</label>
+                  <select name="wizState" className="form-control">
+                    <option value="Telangana">Telangana</option>
+                    <option value="Andhra Pradesh">Andhra Pradesh</option>
+                    <option value="Maharashtra">Maharashtra</option>
+                    <option value="Karnataka">Karnataka</option>
+                    <option value="Delhi">Delhi</option>
+                  </select>
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                  <div className="form-group">
+                    <label className="form-label">Age Category</label>
+                    <select name="wizAge" className="form-control">
+                      <option value="ADULT_18_59">Adult (18 - 59 yrs)</option>
+                      <option value="MINOR_UNDER_18">Minor (Under 18 yrs)</option>
+                      <option value="SENIOR_60_PLUS">Senior Citizen (60+ yrs)</option>
+                    </select>
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">Occupation / Group</label>
+                    <select name="wizOcc" className="form-control">
+                      <option value="CITIZEN">Salaried / General Citizen</option>
+                      <option value="STUDENT">Student</option>
+                      <option value="BUSINESS">Business / MSME Owner</option>
+                      <option value="FARMER">Farmer / Agriculture</option>
+                    </select>
+                  </div>
+                </div>
+                <button type="submit" className="btn-primary" style={{ width: '100%', padding: '12px', marginTop: '8px' }}>
+                  Generate Tailored Checklist
+                </button>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* AUTH MODAL */}
+      {isAuthOpen && (
+        <div className="modal-backdrop" onClick={(e) => { if (e.target.className === 'modal-backdrop') setIsAuthOpen(false); }}>
+          <div className="modal-dialog" style={{ maxWidth: '440px' }}>
+            <div className="modal-header">
+              <h3 className="modal-title">Citizen Account</h3>
+              <button className="close-btn" onClick={() => setIsAuthOpen(false)}>✕</button>
+            </div>
+            <div className="modal-body">
+              {/* Quick Demo Login Buttons */}
+              <div style={{ background: '#eff6ff', padding: '12px', borderRadius: '10px', marginBottom: '18px', border: '1px solid #bfdbfe' }}>
+                <span style={{ fontSize: '11px', fontWeight: '700', color: '#1e40af', textTransform: 'uppercase', display: 'block', marginBottom: '8px' }}>
+                  ⚡ Quick Demo Logins
+                </span>
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <button
+                    type="button"
+                    className="btn-secondary"
+                    style={{ fontSize: '11px', padding: '6px 10px', flex: 1 }}
+                    onClick={async () => {
+                      const res = await api('/auth/login', {
+                        method: 'POST',
+                        body: JSON.stringify({ email: 'citizen@example.com', password: 'Password@123' })
+                      });
+                      localStorage.setItem('civic_auth_token', res.data.token);
+                      localStorage.setItem('civic_user', JSON.stringify(res.data.user));
+                      setCurrentUser(res.data.user);
+                      showToast('Logged in as Citizen Shiva Sai!', 'success');
+                      setIsAuthOpen(false);
+                    }}
+                  >
+                    👤 Demo Citizen
+                  </button>
+                  <button
+                    type="button"
+                    className="btn-secondary"
+                    style={{ fontSize: '11px', padding: '6px 10px', flex: 1 }}
+                    onClick={async () => {
+                      const res = await api('/auth/login', {
+                        method: 'POST',
+                        body: JSON.stringify({ email: 'admin@civicguide.gov.in', password: 'Password@123' })
+                      });
+                      localStorage.setItem('civic_auth_token', res.data.token);
+                      localStorage.setItem('civic_user', JSON.stringify(res.data.user));
+                      setCurrentUser(res.data.user);
+                      showToast('Logged in as Official Civic Administrator!', 'success');
+                      setIsAuthOpen(false);
+                    }}
+                  >
+                    🛡️ Demo Admin
+                  </button>
+                </div>
+              </div>
+
+              <form onSubmit={async (e) => {
+                e.preventDefault();
+                const f = e.target;
+                try {
+                  const res = await api('/auth/login', {
+                    method: 'POST',
+                    body: JSON.stringify({ email: f.loginEmail.value, password: f.loginPassword.value })
+                  });
+                  localStorage.setItem('civic_auth_token', res.data.token);
+                  localStorage.setItem('civic_user', JSON.stringify(res.data.user));
+                  setCurrentUser(res.data.user);
+                  showToast('Signed in successfully!', 'success');
+                  setIsAuthOpen(false);
+                } catch (err) {
+                  showToast(err.message, 'error');
+                }
+              }}>
+                <div className="form-group">
+                  <label className="form-label">Email Address</label>
+                  <input type="email" name="loginEmail" className="form-control" placeholder="citizen@example.com" required />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Password</label>
+                  <input type="password" name="loginPassword" className="form-control" placeholder="••••••••" required />
+                </div>
+                <button type="submit" className="btn-primary" style={{ width: '100%', padding: '11px' }}>
+                  Sign In
+                </button>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* NEW APP MODAL */}
+      {isNewAppOpen && (
+        <div className="modal-backdrop" onClick={(e) => { if (e.target.className === 'modal-backdrop') setIsNewAppOpen(false); }}>
+          <div className="modal-dialog" style={{ maxWidth: '520px' }}>
+            <div className="modal-header">
+              <h3 className="modal-title">+ Track New Application</h3>
+              <button className="close-btn" onClick={() => setIsNewAppOpen(false)}>✕</button>
+            </div>
+            <div className="modal-body">
+              <form onSubmit={async (e) => {
+                e.preventDefault();
+                const f = e.target;
+                const serviceId = f.appService.value;
+                const srv = services.find(s => s.id === serviceId);
+                try {
+                  const res = await api('/applications', {
+                    method: 'POST',
+                    body: JSON.stringify({
+                      service_id: serviceId,
+                      service_title: srv ? srv.title : 'Government Service',
+                      application_reference_number: f.appRef.value,
+                      applied_on: f.appDate.value,
+                      status: f.appStatus.value
+                    })
+                  });
+                  setApplications([res.data, ...applications]);
+                  showToast('Application added to tracker', 'success');
+                  setIsNewAppOpen(false);
+                } catch (err) {
+                  showToast(err.message, 'error');
+                }
+              }}>
+                <div className="form-group">
+                  <label className="form-label">Select Service</label>
+                  <select name="appService" className="form-control" required>
+                    {services.map(s => <option key={s.id} value={s.id}>{s.title}</option>)}
+                  </select>
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Application / Token Reference Number</label>
+                  <input type="text" name="appRef" className="form-control" placeholder="e.g., TS2690847294" required />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Date Applied</label>
+                  <input type="date" name="appDate" className="form-control" />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Current Stage</label>
+                  <select name="appStatus" className="form-control">
+                    <option value="DRAFT">Draft Preparation</option>
+                    <option value="SUBMITTED">Submitted Online</option>
+                    <option value="UNDER_SCRUTINY">Under Scrutiny / Review</option>
+                    <option value="FIELD_VERIFICATION">Police / Field Verification</option>
+                    <option value="APPROVED">Approved / Issued</option>
+                  </select>
+                </div>
+                <button type="submit" className="btn-primary" style={{ width: '100%', padding: '12px' }}>
+                  Add to Tracker
+                </button>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* TOAST CONTAINER */}
       {toast && (
         <div className="toast-container">
           <div className="toast">
@@ -1512,13 +1323,13 @@ export function CivicApp() {
       <footer className="site-footer">
         <div className="container footer-grid">
           <div className="footer-brand">
-            <h4>🏛️ {t('brandTitle')} AI</h4>
+            <h4>🏛️ CivicGuide AI</h4>
             <p style={{ lineHeight: 1.6, maxWidth: '440px' }}>
-              {t('footerDesc')}
+              An authoritative, open citizen platform designed to demystify complex government documentation, statutory fee structures, and application procedures across Indian departments.
             </p>
           </div>
           <div className="footer-links">
-            <h5>{t('footerPortalsTitle')}</h5>
+            <h5>Official Working Portals</h5>
             <ul>
               <li><a href="https://www.passportindia.gov.in" target="_blank" rel="noopener">Passport Seva (.gov.in)</a></li>
               <li><a href="https://sarathi.parivahan.gov.in" target="_blank" rel="noopener">Parivahan Sarathi (.gov.in)</a></li>
@@ -1528,18 +1339,18 @@ export function CivicApp() {
             </ul>
           </div>
           <div className="footer-links">
-            <h5>{t('footerAssuranceTitle')}</h5>
+            <h5>Assurance</h5>
             <ul>
-              <li>{t('assurance1')}</li>
-              <li>{t('assurance2')}</li>
-              <li>{t('assurance3')}</li>
-              <li>{t('assurance4')}</li>
+              <li>Zero Broker Policy</li>
+              <li>100% Official Source Citation</li>
+              <li>Official Gazette Verification</li>
+              <li>Multi-language Support (EN, TE, HI)</li>
             </ul>
           </div>
         </div>
         <div className="container footer-bottom">
-          <div>{t('footerCopyright')}</div>
-          <div>{t('footerCompliance')}</div>
+          <div>© 2026 CivicGuide AI. Government Information Assistant. Built for Indian Citizens.</div>
+          <div>Strict Compliance: No legal advice • Non-government entity</div>
         </div>
       </footer>
     </div>
