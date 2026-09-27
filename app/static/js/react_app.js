@@ -1,4 +1,4 @@
-import { DICTIONARY } from './i18n.js';
+import { DICTIONARY, getLocalizedTitle, getLocalizedDescription, getLocalizedCategory } from './i18n.js';
 
 const { useState, useEffect, useMemo, useRef } = React;
 
@@ -46,6 +46,7 @@ export function CivicApp() {
   const [isWizardOpen, setIsWizardOpen] = useState(false);
   const [isAuthOpen, setIsAuthOpen] = useState(false);
   const [isNewAppOpen, setIsNewAppOpen] = useState(false);
+  const [isLangModalOpen, setIsLangModalOpen] = useState(false);
 
   // Data lists
   const [applications, setApplications] = useState([]);
@@ -219,20 +220,28 @@ export function CivicApp() {
             <span className="notice-text">{t('disclaimer')}</span>
           </div>
           <div className="lang-dropdown-wrapper">
-            <span>🌐</span>
-            <select
-              value={lang}
-              onChange={(e) => {
-                setLang(e.target.value);
-                localStorage.setItem('civic_lang', e.target.value);
+            <button
+              onClick={() => setIsLangModalOpen(true)}
+              style={{
+                background: '#ffffff',
+                border: '1px solid #cbd5e1',
+                borderRadius: '6px',
+                padding: '4px 10px',
+                fontSize: '12px',
+                fontWeight: '700',
+                color: '#0f2744',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                boxShadow: '0 1px 3px rgba(0,0,0,0.08)'
               }}
-              className="lang-dropdown"
-              aria-label="Select Language"
+              title="Click to Switch Language / భాష మార్చండి / भाषा बदलें"
             >
-              <option value="en">English (EN)</option>
-              <option value="te">తెలుగు (Telugu)</option>
-              <option value="hi">हिंदी (Hindi)</option>
-            </select>
+              <span>🌐</span>
+              <span>{lang === 'en' ? 'English (EN)' : lang === 'te' ? 'తెలుగు (TE)' : 'हिंदी (HI)'}</span>
+              <span style={{ fontSize: '10px', color: '#2563eb' }}>⇄ Change</span>
+            </button>
           </div>
         </div>
       </div>
@@ -260,25 +269,25 @@ export function CivicApp() {
               className={`nav-btn ${activeTab === 'services' ? 'active' : ''}`}
               onClick={() => setActiveTab('services')}
             >
-              <span>🏛️</span> Services
+              <span>🏛️</span> {t('servicesNav')}
             </button>
             <button
               className={`nav-btn ${isAiOpen ? 'active' : ''}`}
               onClick={() => setIsAiOpen(true)}
             >
-              <span>✨</span> Ask Civic AI
+              <span>✨</span> {t('askAi')}
             </button>
             <button
               className={`nav-btn ${activeTab === 'applications' ? 'active' : ''}`}
               onClick={() => setActiveTab('applications')}
             >
-              <span>📋</span> My Applications
+              <span>📋</span> {t('myApplications')}
             </button>
             <button
               className={`nav-btn ${activeTab === 'reminders' ? 'active' : ''}`}
               onClick={() => setActiveTab('reminders')}
             >
-              <span>🔔</span> Reminders
+              <span>🔔</span> {t('reminders')}
             </button>
             {currentUser?.role === 'admin' && (
               <button
@@ -286,12 +295,21 @@ export function CivicApp() {
                 onClick={() => setActiveTab('admin')}
                 style={{ color: '#7c3aed' }}
               >
-                <span>🛡️</span> Admin Console
+                <span>🛡️</span> {t('adminPortal')}
               </button>
             )}
           </nav>
 
           <div className="header-actions">
+            <button
+              className="btn-secondary"
+              onClick={() => setIsLangModalOpen(true)}
+              style={{ padding: '8px 12px', fontSize: '12px', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '6px' }}
+              title="Click to Switch Language (English / తెలుగు / हिंदी)"
+            >
+              <span>🌐</span>
+              <span>{lang === 'en' ? 'EN' : lang === 'te' ? 'తెలుగు' : 'हिंदी'}</span>
+            </button>
             <button className="btn-gold" onClick={() => setIsWizardOpen(true)}>
               <span>✨</span> {t('getGuidance')}
             </button>
@@ -380,22 +398,50 @@ export function CivicApp() {
                 <div className="metric-card">
                   <div style={{ fontSize: '20px', marginBottom: '2px' }}>🏛️</div>
                   <div className="metric-value">12+</div>
-                  <div className="metric-label">Official Portals</div>
+                  <div className="metric-label">{t('statPortals')}</div>
                 </div>
                 <div className="metric-card">
                   <div style={{ fontSize: '20px', marginBottom: '2px' }}>⚡</div>
                   <div className="metric-value">100%</div>
-                  <div className="metric-label">Grounded RAG</div>
+                  <div className="metric-label">{t('statRag')}</div>
                 </div>
                 <div className="metric-card">
                   <div style={{ fontSize: '20px', marginBottom: '2px' }}>🛡️</div>
                   <div className="metric-value">Zero</div>
-                  <div className="metric-label">Touts Guarantee</div>
+                  <div className="metric-label">{t('statBroker')}</div>
                 </div>
-                <div className="metric-card">
+                <div
+                  className="metric-card interactive-metric"
+                  onClick={() => setIsLangModalOpen(true)}
+                  style={{
+                    cursor: 'pointer',
+                    background: 'linear-gradient(135deg, rgba(239, 246, 255, 0.95), rgba(255, 255, 255, 0.95))',
+                    border: '1.5px solid #60a5fa',
+                    boxShadow: '0 4px 14px rgba(37, 99, 235, 0.12)',
+                    position: 'relative'
+                  }}
+                  title="Click to Switch Language / భాష మార్చండి / भाषा बदलें"
+                >
                   <div style={{ fontSize: '20px', marginBottom: '2px' }}>🌐</div>
-                  <div className="metric-value">3</div>
-                  <div className="metric-label">Languages (EN/TE/HI)</div>
+                  <div className="metric-value" style={{ color: '#1e40af' }}>3</div>
+                  <div className="metric-label" style={{ color: '#1e3a8a', fontWeight: '800' }}>
+                    {t('statLang')} <span>⇄</span>
+                  </div>
+                  <div style={{
+                    fontSize: '11px',
+                    color: '#2563eb',
+                    fontWeight: '700',
+                    marginTop: '4px',
+                    background: '#dbeafe',
+                    padding: '2px 8px',
+                    borderRadius: '999px',
+                    display: 'inline-block'
+                  }}>
+                    {lang === 'en' ? '🇬🇧 English' : lang === 'te' ? '🇮🇳 తెలుగు' : '🇮🇳 हिंदी'}
+                  </div>
+                  <div style={{ fontSize: '10px', color: '#64748b', marginTop: '2px' }}>
+                    {t('statLangSub')}
+                  </div>
                 </div>
               </div>
 
@@ -405,7 +451,7 @@ export function CivicApp() {
                   className={`cat-pill-btn ${selectedCategory === 'ALL' ? 'active' : ''}`}
                   onClick={() => setSelectedCategory('ALL')}
                 >
-                  <span>🌟</span> All Categories
+                  <span>🌟</span> {t('allCategories')}
                 </button>
                 {categories.map(cat => (
                   <button
@@ -416,7 +462,7 @@ export function CivicApp() {
                     <span>
                       {cat.includes('Identity') ? '🛂' : cat.includes('Transport') ? '🚗' : cat.includes('Revenue') ? '📜' : cat.includes('Civil') ? '👶' : cat.includes('Education') ? '🎓' : '🏢'}
                     </span>
-                    {cat}
+                    {getLocalizedCategory(cat, lang)}
                   </button>
                 ))}
               </div>
@@ -495,9 +541,9 @@ export function CivicApp() {
                         </div>
 
                         <h3 className="service-title" onClick={() => openServiceModal(s.id)}>
-                          {s.title}
+                          {getLocalizedTitle(s, lang)}
                         </h3>
-                        <p className="service-desc">{s.short_summary || s.description}</p>
+                        <p className="service-desc">{getLocalizedDescription(s, lang)}</p>
 
                         <div className={`verification-pill ${isVerified ? 'verified' : 'unverified'}`}>
                           <span>{isVerified ? '🛡️ ' + t('verifiedBadge') : '⚠️ ' + t('needsVerificationBadge')}</span>
@@ -833,7 +879,7 @@ export function CivicApp() {
         <div className="modal-backdrop" onClick={(e) => { if (e.target.className === 'modal-backdrop') setSelectedService(null); }}>
           <div className="modal-dialog">
             <div className="modal-header">
-              <h3 className="modal-title">{selectedService.title}</h3>
+              <h3 className="modal-title">{getLocalizedTitle(selectedService, lang)}</h3>
               <button className="close-btn" onClick={() => setSelectedService(null)}>✕</button>
             </div>
 
@@ -860,7 +906,7 @@ export function CivicApp() {
                 <div>
                   <div style={{ marginBottom: '20px' }}>
                     <h4 style={{ fontWeight: '700', color: '#0f2744', marginBottom: '8px' }}>Official Summary</h4>
-                    <p style={{ fontSize: '14px', color: '#475569', lineHeight: '1.6' }}>{selectedService.description}</p>
+                    <p style={{ fontSize: '14px', color: '#475569', lineHeight: '1.6' }}>{getLocalizedDescription(selectedService, lang)}</p>
                   </div>
 
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '20px', background: '#f8fafc', padding: '16px', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
@@ -1315,6 +1361,159 @@ export function CivicApp() {
           <div className="toast">
             <span>{toast.type === 'error' ? '❌' : toast.type === 'success' ? '✅' : 'ℹ️'}</span>
             <span>{toast.message}</span>
+          </div>
+        </div>
+      )}
+
+      {/* LANGUAGE SELECTION MODAL (TELUGU, HINDI, ENGLISH) */}
+      {isLangModalOpen && (
+        <div className="modal-backdrop" onClick={(e) => { if (e.target.className === 'modal-backdrop') setIsLangModalOpen(false); }}>
+          <div className="modal-dialog" style={{ maxWidth: '520px' }}>
+            <div className="modal-header">
+              <div>
+                <h3 className="modal-title" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span>🌐</span> {t('selectLanguageTitle')}
+                </h3>
+                <p style={{ fontSize: '12px', color: '#64748b', marginTop: '4px' }}>
+                  {t('selectLanguageSub')}
+                </p>
+              </div>
+              <button className="close-btn" onClick={() => setIsLangModalOpen(false)}>✕</button>
+            </div>
+            <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '14px', padding: '20px' }}>
+              {[
+                {
+                  code: 'en',
+                  flag: '🇬🇧',
+                  native: 'English',
+                  roman: 'English (EN)',
+                  desc: 'Official Pan-India Guidelines, Gazette Citations, and Forms in English.'
+                },
+                {
+                  code: 'te',
+                  flag: '🇮🇳',
+                  native: 'తెలుగు',
+                  roman: 'Telugu (TE)',
+                  desc: 'తెలంగాణ మరియు ఆంధ్రప్రదేశ్ ప్రభుత్వ సేవల సమాచారం, మీసేవ, పోర్టల్ లింకులు మరియు పత్రాల చెక్‌లిస్ట్.'
+                },
+                {
+                  code: 'hi',
+                  flag: '🇮🇳',
+                  native: 'हिन्दी',
+                  roman: 'Hindi (HI)',
+                  desc: 'अखिल भारतीय एवं राज्य स्तरीय सरकारी सेवाओं, आवश्यक दस्तावेजों की चेकलिस्ट तथा आधिकारिक पोर्टल लिंक्स।'
+                }
+              ].map(opt => {
+                const isSelected = lang === opt.code;
+                return (
+                  <div
+                    key={opt.code}
+                    onClick={() => {
+                      setLang(opt.code);
+                      localStorage.setItem('civic_lang', opt.code);
+                      setIsLangModalOpen(false);
+                      const toasts = {
+                        en: 'Language set to English',
+                        te: 'భాష తెలుగుకి మార్చబడింది (Language set to Telugu)',
+                        hi: 'भाषा हिंदी में बदली गई (Language set to Hindi)'
+                      };
+                      showToast(toasts[opt.code] || 'Language updated', 'success');
+                    }}
+                    style={{
+                      padding: '16px 18px',
+                      borderRadius: '14px',
+                      border: isSelected ? '2px solid #2563eb' : '1px solid #e2e8f0',
+                      background: isSelected ? 'linear-gradient(135deg, #eff6ff, #dbeafe)' : '#ffffff',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
+                      boxShadow: isSelected ? '0 6px 16px rgba(37, 99, 235, 0.16)' : '0 1px 3px rgba(0,0,0,0.03)'
+                    }}
+                    onMouseEnter={(e) => {
+                      if (!isSelected) {
+                        e.currentTarget.style.borderColor = '#93c5fd';
+                        e.currentTarget.style.transform = 'translateY(-2px)';
+                        e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.06)';
+                      }
+                    }}
+                    onMouseLeave={(e) => {
+                      if (!isSelected) {
+                        e.currentTarget.style.borderColor = '#e2e8f0';
+                        e.currentTarget.style.transform = 'translateY(0)';
+                        e.currentTarget.style.boxShadow = '0 1px 3px rgba(0,0,0,0.03)';
+                      }
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                      <div style={{
+                        fontSize: '32px',
+                        width: '46px',
+                        height: '46px',
+                        borderRadius: '50%',
+                        background: '#ffffff',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        boxShadow: '0 2px 6px rgba(0,0,0,0.08)'
+                      }}>
+                        {opt.flag}
+                      </div>
+                      <div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <span style={{ fontSize: '20px', fontWeight: '800', color: isSelected ? '#1e40af' : '#0f172a' }}>
+                            {opt.native}
+                          </span>
+                          <span style={{ fontSize: '13px', color: isSelected ? '#2563eb' : '#64748b', fontWeight: '700' }}>
+                            ({opt.roman})
+                          </span>
+                        </div>
+                        <p style={{ fontSize: '12px', color: isSelected ? '#1e3a8a' : '#64748b', marginTop: '3px', lineHeight: 1.4 }}>
+                          {opt.desc}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div style={{ marginLeft: '12px', flexShrink: 0 }}>
+                      {isSelected ? (
+                        <div style={{
+                          background: '#2563eb',
+                          color: '#ffffff',
+                          fontSize: '11px',
+                          fontWeight: '800',
+                          padding: '6px 12px',
+                          borderRadius: '999px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '4px',
+                          boxShadow: '0 2px 6px rgba(37, 99, 235, 0.3)'
+                        }}>
+                          ✓ {t('activeBadge')}
+                        </div>
+                      ) : (
+                        <div style={{
+                          border: '1px solid #cbd5e1',
+                          color: '#475569',
+                          fontSize: '11px',
+                          fontWeight: '700',
+                          padding: '6px 12px',
+                          borderRadius: '999px',
+                          background: '#f8fafc'
+                        }}>
+                          Select →
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            <div className="modal-footer" style={{ justifyContent: 'flex-end', paddingTop: '12px' }}>
+              <button className="btn-secondary" onClick={() => setIsLangModalOpen(false)}>
+                {t('close')}
+              </button>
+            </div>
           </div>
         </div>
       )}

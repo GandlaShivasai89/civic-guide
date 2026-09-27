@@ -44,7 +44,16 @@ export const DICTIONARY = {
     appliedOn: 'Applied Date',
     nextAction: 'Next Action',
     addApplication: 'Track Application',
-    newReminder: 'Add Reminder'
+    newReminder: 'Add Reminder',
+    selectLanguageTitle: 'Select Language / భాషను ఎంచుకోండి / भाषा चुनें',
+    selectLanguageSub: 'Choose your preferred language for government service procedures, checklists, and AI assistance.',
+    activeBadge: 'Active Language',
+    servicesNav: 'Services',
+    statPortals: 'Official Portals',
+    statRag: 'Grounded RAG',
+    statBroker: 'Zero Touts Guarantee',
+    statLang: '3 Languages',
+    statLangSub: 'Click to Switch (EN/TE/HI)'
   },
   te: {
     tagline: 'సివిక్‌గైడ్ AI – ప్రభుత్వ సేవల సహాయకుడు',
@@ -90,7 +99,16 @@ export const DICTIONARY = {
     appliedOn: 'దరఖాస్తు చేసిన తేదీ',
     nextAction: 'తదుపరి చర్య',
     addApplication: 'దరఖాస్తును ట్రాక్ చేయండి',
-    newReminder: 'రిమైండర్ జోడించండి'
+    newReminder: 'రిమైండర్ జోడించండి',
+    selectLanguageTitle: 'భాషను ఎంచుకోండి (Select Language)',
+    selectLanguageSub: 'ప్రభుత్వ విధానాలు, పత్రాల చెక్‌లిస్ట్ మరియు AI సహాయం కోసం మీ ప్రాధాన్య భాషను ఎంచుకోండి.',
+    activeBadge: 'ప్రస్తుత భాష',
+    servicesNav: 'ప్రభుత్వ సేవలు',
+    statPortals: 'అధికారిక పోర్టల్స్',
+    statRag: 'ధ్రువీకరించిన సమాచారం',
+    statBroker: 'దళారులు లేని గ్యారెంటీ',
+    statLang: '3 భాషలు',
+    statLangSub: 'మార్చడానికి క్లిక్ చేయండి'
   },
   hi: {
     tagline: 'सिविकगाइड AI – सरकारी प्रक्रिया सहायक',
@@ -136,6 +154,187 @@ export const DICTIONARY = {
     appliedOn: 'आवेदन तिथि',
     nextAction: 'अगली कार्रवाई',
     addApplication: 'आवेदन ट्रैक करें',
-    newReminder: 'रिमाइंडर जोड़ें'
+    newReminder: 'रिमाइंडर जोड़ें',
+    selectLanguageTitle: 'भाषा का चयन करें (Select Language)',
+    selectLanguageSub: 'सरकारी प्रक्रियाओं, आवश्यक दस्तावेजों और एआई सहायता के लिए अपनी पसंदीदा भाषा चुनें।',
+    activeBadge: 'सक्रिय भाषा',
+    servicesNav: 'सरकारी सेवाएं',
+    statPortals: 'आधिकारिक पोर्टल',
+    statRag: 'सत्यापित जानकारी',
+    statBroker: 'बिचौलिया मुक्त गारंटी',
+    statLang: '3 भाषाएं',
+    statLangSub: 'बदलने हेतु क्लिक करें'
   }
 };
+
+// Rich Service Translations for English, Telugu and Hindi
+export const SERVICE_TRANSLATIONS = {
+  'srv-passport': {
+    te: {
+      title: 'పాస్‌పోర్ట్ సేవా దరఖాస్తు (తత్కాల్ / సాధారణం)',
+      description: 'భారతీయ పౌరుల కోసం విదేశాంగ మంత్రిత్వ శాఖ నుండి సాధారణ మరియు తత్కాల్ పాస్‌పోర్ట్ దరఖాస్తు విధానం.'
+    },
+    hi: {
+      title: 'नया पासपोर्ट आवेदन (तत्काल / सामान्य)',
+      description: 'विदेश मंत्रालय द्वारा भारतीय नागरिकों हेतु सामान्य एवं तत्काल पासपोर्ट जारी करने की आधिकारिक प्रक्रिया।'
+    }
+  },
+  'srv-driving-licence': {
+    te: {
+      title: 'డ్రైవింగ్ లైసెన్స్ & లెర్నర్స్ లైసెన్స్ (LLR/DL)',
+      description: 'సారథి పరివాహన్ పోర్టల్ ద్వారా లెర్నర్ లైసెన్స్ మరియు శాశ్వత డ్రైవింగ్ లైసెన్స్ ఆన్‌లైన్ దరఖాస్తు.'
+    },
+    hi: {
+      title: 'ड्राइविंग लाइसेंस एवं लर्नर लाइसेंस (LLR/DL)',
+      description: 'सारथी परिवहन पोर्टल के माध्यम से शिक्षार्थी (LLR) और स्थायी ड्राइविंग लाइसेंस की आवेदन प्रक्रिया।'
+    }
+  },
+  'srv-aadhaar-update': {
+    te: {
+      title: 'ఆధార్ వివరాల నవీకరణ (డెమోగ్రాఫిక్ & బయోమెట్రిక్)',
+      description: 'పేరు, చిరునామా, పుట్టిన తేదీ, మొబైల్ నంబర్ మరియు బయోమెట్రిక్స్ ఆధార్‌లో సరిచేసుకునే విధానం.'
+    },
+    hi: {
+      title: 'आधार विवरण अपडेट (जनसांख्यिकीय एवं बायोमेट्रिक)',
+      description: 'नाम, पता, जन्मतिथि, मोबाइल नंबर तथा बायोमेट्रिक विवरण अपडेट करने की आधिकारिक प्रक्रिया।'
+    }
+  },
+  'srv-pan-card': {
+    te: {
+      title: 'ఈ-పాన్ కార్డు / సరికొత్త పాన్ కార్డు (Instant e-PAN)',
+      description: 'ఆధార్ ఆధారంగా ఉచిత తక్షణ ఈ-పాన్ మరియు కొత్త భౌతిక పాన్ కార్డు కోసం అధికారిక దరఖాస్తు.'
+    },
+    hi: {
+      title: 'तत्काल ई-पैन कार्ड / नया पैन कार्ड (Instant e-PAN)',
+      description: 'आयकर विभाग द्वारा आधार ई-केवाईसी आधारित निःशुल्क ई-पैन और नए पैन कार्ड की आवेदन प्रक्रिया।'
+    }
+  },
+  'srv-voter-id': {
+    te: {
+      title: 'కొత్త ఓటరు గుర్తింపు కార్డు నమోదు (Form 6)',
+      description: '18 ఏళ్లు నిండిన పౌరుల కోసం భారత ఎన్నికల సంఘం ద్వారా కొత్త ఓటరు నమోదు మరియు ఎపిక్ కార్డు జారీ.'
+    },
+    hi: {
+      title: 'नया मतदाता पहचान पत्र पंजीकरण (फॉर्म 6)',
+      description: '18 वर्ष की आयु पूरी करने वाले भारतीय नागरिकों हेतु भारत निर्वाचन आयोग का ऑनलाइन फॉर्म 6।'
+    }
+  },
+  'srv-income-cert-tg': {
+    te: {
+      title: 'మీసేవ ఆదాయ ధ్రువీకరణ పత్రం (Income Certificate)',
+      description: 'తెలంగాణ రెవెన్యూ శాఖ నుండి విద్యా స్కాలర్‌షిప్‌లు మరియు ప్రభుత్వ పథకాల కోసం ఆదాయ ధ్రువీకరణ.'
+    },
+    hi: {
+      title: 'मीसेवा आय प्रमाण पत्र (Income Certificate)',
+      description: 'तेलंगाना राजस्व विभाग द्वारा छात्रवृत्ति एवं जनकल्याण योजनाओं हेतु आधिकारिक आय प्रमाण पत्र।'
+    }
+  },
+  'srv-caste-cert-tg': {
+    te: {
+      title: 'మీసేవ సమగ్ర కుల & నివాస ధ్రువీకరణ పత్రం',
+      description: 'విద్య మరియు ఉద్యోగ రిజర్వేషన్ల కొరకు తెలంగాణ ప్రభుత్వం జారీ చేసే అధికారిక కుల ధ్రువీకరణ పత్రం.'
+    },
+    hi: {
+      title: 'मीसेवा एकीकृत जाति एवं निवास प्रमाण पत्र',
+      description: 'शिक्षा और सरकारी नौकरियों में आरक्षण हेतु तेलंगाना सरकार का अधिकृत जाति प्रमाण पत्र।'
+    }
+  },
+  'srv-birth-cert': {
+    te: {
+      title: 'జనన నమోదు & ధ్రువీకరణ పత్రం (Birth Certificate)',
+      description: 'పౌర రిజిస్ట్రేషన్ వ్యవస్థ (CRS) మరియు మున్సిపల్ కార్యాలయాల ద్వారా జనన ధ్రువీకరణ పత్రం జారీ.'
+    },
+    hi: {
+      title: 'जन्म पंजीकरण एवं प्रमाण पत्र (Birth Certificate)',
+      description: 'नागरिक पंजीकरण प्रणाली (CRS) एवं नगर निगम द्वारा कानूनी जन्म प्रमाण पत्र प्राप्त करने की प्रक्रिया।'
+    }
+  },
+  'srv-epass-scholarship': {
+    te: {
+      title: 'తెలంగాణ ఈపాస్ పోస్ట్-మెట్రిక్ స్కాలర్‌షిప్',
+      description: 'ఎస్సీ, ఎస్టీ, బీసీ మరియు మైనారిటీ విద్యార్థులకు ట్యూషన్ ఫీజు రీయింబర్స్‌మెంట్ మరియు ఉపకార వేతనం.'
+    },
+    hi: {
+      title: 'तेलंगाना ई-पास पोस्ट-मैट्रिक छात्रवृत्ति',
+      description: 'एससी, एसटी, बीसी एवं अल्पसंख्यक छात्रों हेतु पूर्ण शिक्षण शुल्क प्रतिपूर्ति एवं छात्रवृत्ति।'
+    }
+  },
+  'srv-udyam-msme': {
+    te: {
+      title: 'ఉద్యమ్ ఎంఎస్ఎంఈ నమోదు పత్రం (Udyam Registration)',
+      description: 'చిన్న, సూక్ష్మ మరియు మధ్య తరహా పరిశ్రమల కోసం పేపర్‌లెస్ మరియు ఉచిత కేంద్ర ప్రభుత్వ రిజిస్ట్రేషన్.'
+    },
+    hi: {
+      title: 'उद्यम एमएसएमई पंजीकरण प्रमाण पत्र (Udyam MSME)',
+      description: 'सूक्ष्म, लघु एवं मध्यम उद्योगों हेतु निःशुल्क, स्व-घोषित एवं पेपरलेस सरकारी प्रमाण पत्र।'
+    }
+  },
+  'srv-ration-card-tg': {
+    te: {
+      title: 'ఆహార భద్రత కార్డు / రేషన్ కార్డు (Food Security Card)',
+      description: 'తెలంగాణ పౌర సరఫరాల శాఖ ద్వారా రాయితీ బియ్యం మరియు సంక్షేమ పథకాల కోసం కుటుంబ రేషన్ కార్డు.'
+    },
+    hi: {
+      title: 'खाद्य सुरक्षा राशन कार्ड (Food Security Ration Card)',
+      description: 'सब्सिडी वाले खाद्यान्न और सरकारी कल्याणकारी लाभों हेतु परिवार खाद्य सुरक्षा कार्ड।'
+    }
+  },
+  'srv-pension-asara': {
+    te: {
+      title: 'ఆసరా సామాజిక భద్రతా పింఛను పథకం (Aasara Pension)',
+      description: 'వృద్ధులు, వితంతువులు, దివ్యాంగులు మరియు చేనేత/బీడీ కార్మికులకు ప్రభుత్వం ఇచ్చే నెలవారీ పింఛను.'
+    },
+    hi: {
+      title: 'आसरा सामाजिक सुरक्षा पेंशन योजना (Aasara Pension)',
+      description: 'वृद्धजनों, विधवाओं, दिव्यांगजनों के लिए तेलंगाना सरकार की मासिक वित्तीय पेंशन सहायता।'
+    }
+  }
+};
+
+// Category translations
+export const CATEGORY_TRANSLATIONS = {
+  'Identity & Civil Status': {
+    te: 'గుర్తింపు & పౌర సేవలు',
+    hi: 'पहचान एवं नागरिक सेवाएं'
+  },
+  'Transport & Driving': {
+    te: 'రవాణా & డ్రైవింగ్ లైసెన్స్',
+    hi: 'परिवहन एवं ड्राइविंग'
+  },
+  'Revenue & Social Welfare': {
+    te: 'రెవెన్యూ & సంక్షేమం',
+    hi: 'राजस्व एवं सामाजिक कल्याण'
+  },
+  'Education & Skills': {
+    te: 'విద్య & నైపుణ్యాలు',
+    hi: 'शिक्षा एवं कौशल'
+  },
+  'Business & MSME': {
+    te: 'వ్యాపార & MSME',
+    hi: 'व्यापार एवं एमएसएमई'
+  }
+};
+
+export function getLocalizedTitle(service, lang) {
+  if (!service) return '';
+  if (lang !== 'en' && SERVICE_TRANSLATIONS[service.id]?.[lang]?.title) {
+    return SERVICE_TRANSLATIONS[service.id][lang].title;
+  }
+  return service.title;
+}
+
+export function getLocalizedDescription(service, lang) {
+  if (!service) return '';
+  if (lang !== 'en' && SERVICE_TRANSLATIONS[service.id]?.[lang]?.description) {
+    return SERVICE_TRANSLATIONS[service.id][lang].description;
+  }
+  return service.description;
+}
+
+export function getLocalizedCategory(category, lang) {
+  if (!category) return '';
+  if (lang !== 'en' && CATEGORY_TRANSLATIONS[category]?.[lang]) {
+    return CATEGORY_TRANSLATIONS[category][lang];
+  }
+  return category;
+}

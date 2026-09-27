@@ -1,4 +1,4 @@
-import { DICTIONARY } from './i18n.js';
+import { DICTIONARY, getLocalizedTitle, getLocalizedDescription, getLocalizedCategory } from './i18n.js';
 const {
   useState,
   useEffect,
@@ -52,6 +52,7 @@ export function CivicApp() {
   const [isWizardOpen, setIsWizardOpen] = useState(false);
   const [isAuthOpen, setIsAuthOpen] = useState(false);
   const [isNewAppOpen, setIsNewAppOpen] = useState(false);
+  const [isLangModalOpen, setIsLangModalOpen] = useState(false);
 
   // Data lists
   const [applications, setApplications] = useState([]);
@@ -211,21 +212,29 @@ export function CivicApp() {
     className: "notice-text"
   }, t('disclaimer'))), /*#__PURE__*/React.createElement("div", {
     className: "lang-dropdown-wrapper"
-  }, /*#__PURE__*/React.createElement("span", null, "\uD83C\uDF10"), /*#__PURE__*/React.createElement("select", {
-    value: lang,
-    onChange: e => {
-      setLang(e.target.value);
-      localStorage.setItem('civic_lang', e.target.value);
+  }, /*#__PURE__*/React.createElement("button", {
+    onClick: () => setIsLangModalOpen(true),
+    style: {
+      background: '#ffffff',
+      border: '1px solid #cbd5e1',
+      borderRadius: '6px',
+      padding: '4px 10px',
+      fontSize: '12px',
+      fontWeight: '700',
+      color: '#0f2744',
+      cursor: 'pointer',
+      display: 'flex',
+      alignItems: 'center',
+      gap: '6px',
+      boxShadow: '0 1px 3px rgba(0,0,0,0.08)'
     },
-    className: "lang-dropdown",
-    "aria-label": "Select Language"
-  }, /*#__PURE__*/React.createElement("option", {
-    value: "en"
-  }, "English (EN)"), /*#__PURE__*/React.createElement("option", {
-    value: "te"
-  }, "\u0C24\u0C46\u0C32\u0C41\u0C17\u0C41 (Telugu)"), /*#__PURE__*/React.createElement("option", {
-    value: "hi"
-  }, "\u0939\u093F\u0902\u0926\u0940 (Hindi)"))))), /*#__PURE__*/React.createElement("header", {
+    title: "Click to Switch Language / \u0C2D\u0C3E\u0C37 \u0C2E\u0C3E\u0C30\u0C4D\u0C1A\u0C02\u0C21\u0C3F / \u092D\u093E\u0937\u093E \u092C\u0926\u0932\u0947\u0902"
+  }, /*#__PURE__*/React.createElement("span", null, "\uD83C\uDF10"), /*#__PURE__*/React.createElement("span", null, lang === 'en' ? 'English (EN)' : lang === 'te' ? 'తెలుగు (TE)' : 'हिंदी (HI)'), /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: '10px',
+      color: '#2563eb'
+    }
+  }, "\u21C4 Change"))))), /*#__PURE__*/React.createElement("header", {
     className: "main-header"
   }, /*#__PURE__*/React.createElement("div", {
     className: "container header-inner"
@@ -261,24 +270,36 @@ export function CivicApp() {
   }, /*#__PURE__*/React.createElement("button", {
     className: `nav-btn ${activeTab === 'services' ? 'active' : ''}`,
     onClick: () => setActiveTab('services')
-  }, /*#__PURE__*/React.createElement("span", null, "\uD83C\uDFDB\uFE0F"), " Services"), /*#__PURE__*/React.createElement("button", {
+  }, /*#__PURE__*/React.createElement("span", null, "\uD83C\uDFDB\uFE0F"), " ", t('servicesNav')), /*#__PURE__*/React.createElement("button", {
     className: `nav-btn ${isAiOpen ? 'active' : ''}`,
     onClick: () => setIsAiOpen(true)
-  }, /*#__PURE__*/React.createElement("span", null, "\u2728"), " Ask Civic AI"), /*#__PURE__*/React.createElement("button", {
+  }, /*#__PURE__*/React.createElement("span", null, "\u2728"), " ", t('askAi')), /*#__PURE__*/React.createElement("button", {
     className: `nav-btn ${activeTab === 'applications' ? 'active' : ''}`,
     onClick: () => setActiveTab('applications')
-  }, /*#__PURE__*/React.createElement("span", null, "\uD83D\uDCCB"), " My Applications"), /*#__PURE__*/React.createElement("button", {
+  }, /*#__PURE__*/React.createElement("span", null, "\uD83D\uDCCB"), " ", t('myApplications')), /*#__PURE__*/React.createElement("button", {
     className: `nav-btn ${activeTab === 'reminders' ? 'active' : ''}`,
     onClick: () => setActiveTab('reminders')
-  }, /*#__PURE__*/React.createElement("span", null, "\uD83D\uDD14"), " Reminders"), currentUser?.role === 'admin' && /*#__PURE__*/React.createElement("button", {
+  }, /*#__PURE__*/React.createElement("span", null, "\uD83D\uDD14"), " ", t('reminders')), currentUser?.role === 'admin' && /*#__PURE__*/React.createElement("button", {
     className: `nav-btn ${activeTab === 'admin' ? 'active' : ''}`,
     onClick: () => setActiveTab('admin'),
     style: {
       color: '#7c3aed'
     }
-  }, /*#__PURE__*/React.createElement("span", null, "\uD83D\uDEE1\uFE0F"), " Admin Console")), /*#__PURE__*/React.createElement("div", {
+  }, /*#__PURE__*/React.createElement("span", null, "\uD83D\uDEE1\uFE0F"), " ", t('adminPortal'))), /*#__PURE__*/React.createElement("div", {
     className: "header-actions"
   }, /*#__PURE__*/React.createElement("button", {
+    className: "btn-secondary",
+    onClick: () => setIsLangModalOpen(true),
+    style: {
+      padding: '8px 12px',
+      fontSize: '12px',
+      fontWeight: '700',
+      display: 'flex',
+      alignItems: 'center',
+      gap: '6px'
+    },
+    title: "Click to Switch Language (English / \u0C24\u0C46\u0C32\u0C41\u0C17\u0C41 / \u0939\u093F\u0902\u0926\u0940)"
+  }, /*#__PURE__*/React.createElement("span", null, "\uD83C\uDF10"), /*#__PURE__*/React.createElement("span", null, lang === 'en' ? 'EN' : lang === 'te' ? 'తెలుగు' : 'हिंदी')), /*#__PURE__*/React.createElement("button", {
     className: "btn-gold",
     onClick: () => setIsWizardOpen(true)
   }, /*#__PURE__*/React.createElement("span", null, "\u2728"), " ", t('getGuidance')), currentUser ? /*#__PURE__*/React.createElement("div", {
@@ -395,7 +416,7 @@ export function CivicApp() {
     className: "metric-value"
   }, "12+"), /*#__PURE__*/React.createElement("div", {
     className: "metric-label"
-  }, "Official Portals")), /*#__PURE__*/React.createElement("div", {
+  }, t('statPortals'))), /*#__PURE__*/React.createElement("div", {
     className: "metric-card"
   }, /*#__PURE__*/React.createElement("div", {
     style: {
@@ -406,7 +427,7 @@ export function CivicApp() {
     className: "metric-value"
   }, "100%"), /*#__PURE__*/React.createElement("div", {
     className: "metric-label"
-  }, "Grounded RAG")), /*#__PURE__*/React.createElement("div", {
+  }, t('statRag'))), /*#__PURE__*/React.createElement("div", {
     className: "metric-card"
   }, /*#__PURE__*/React.createElement("div", {
     style: {
@@ -417,27 +438,60 @@ export function CivicApp() {
     className: "metric-value"
   }, "Zero"), /*#__PURE__*/React.createElement("div", {
     className: "metric-label"
-  }, "Touts Guarantee")), /*#__PURE__*/React.createElement("div", {
-    className: "metric-card"
+  }, t('statBroker'))), /*#__PURE__*/React.createElement("div", {
+    className: "metric-card interactive-metric",
+    onClick: () => setIsLangModalOpen(true),
+    style: {
+      cursor: 'pointer',
+      background: 'linear-gradient(135deg, rgba(239, 246, 255, 0.95), rgba(255, 255, 255, 0.95))',
+      border: '1.5px solid #60a5fa',
+      boxShadow: '0 4px 14px rgba(37, 99, 235, 0.12)',
+      position: 'relative'
+    },
+    title: "Click to Switch Language / \u0C2D\u0C3E\u0C37 \u0C2E\u0C3E\u0C30\u0C4D\u0C1A\u0C02\u0C21\u0C3F / \u092D\u093E\u0937\u093E \u092C\u0926\u0932\u0947\u0902"
   }, /*#__PURE__*/React.createElement("div", {
     style: {
       fontSize: '20px',
       marginBottom: '2px'
     }
   }, "\uD83C\uDF10"), /*#__PURE__*/React.createElement("div", {
-    className: "metric-value"
+    className: "metric-value",
+    style: {
+      color: '#1e40af'
+    }
   }, "3"), /*#__PURE__*/React.createElement("div", {
-    className: "metric-label"
-  }, "Languages (EN/TE/HI)"))), /*#__PURE__*/React.createElement("div", {
+    className: "metric-label",
+    style: {
+      color: '#1e3a8a',
+      fontWeight: '800'
+    }
+  }, t('statLang'), " ", /*#__PURE__*/React.createElement("span", null, "\u21C4")), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: '11px',
+      color: '#2563eb',
+      fontWeight: '700',
+      marginTop: '4px',
+      background: '#dbeafe',
+      padding: '2px 8px',
+      borderRadius: '999px',
+      display: 'inline-block'
+    }
+  }, lang === 'en' ? '🇬🇧 English' : lang === 'te' ? '🇮🇳 తెలుగు' : '🇮🇳 हिंदी'), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: '10px',
+      color: '#64748b',
+      marginTop: '2px'
+    }
+  }, t('statLangSub')))), /*#__PURE__*/React.createElement("div", {
     className: "category-badges-shelf"
   }, /*#__PURE__*/React.createElement("button", {
     className: `cat-pill-btn ${selectedCategory === 'ALL' ? 'active' : ''}`,
     onClick: () => setSelectedCategory('ALL')
-  }, /*#__PURE__*/React.createElement("span", null, "\uD83C\uDF1F"), " All Categories"), categories.map(cat => /*#__PURE__*/React.createElement("button", {
+  }, /*#__PURE__*/React.createElement("span", null, "\uD83C\uDF1F"), " ", t('allCategories')), categories.map(cat => /*#__PURE__*/React.createElement("button", {
     key: cat,
     className: `cat-pill-btn ${selectedCategory === cat ? 'active' : ''}`,
     onClick: () => setSelectedCategory(cat)
-  }, /*#__PURE__*/React.createElement("span", null, cat.includes('Identity') ? '🛂' : cat.includes('Transport') ? '🚗' : cat.includes('Revenue') ? '📜' : cat.includes('Civil') ? '👶' : cat.includes('Education') ? '🎓' : '🏢'), cat))))), /*#__PURE__*/React.createElement("div", {
+  }, /*#__PURE__*/React.createElement("span", null, cat.includes('Identity') ? '🛂' : cat.includes('Transport') ? '🚗' : cat.includes('Revenue') ? '📜' : cat.includes('Civil') ? '👶' : cat.includes('Education') ? '🎓' : '🏢'), getLocalizedCategory(cat, lang)))))), /*#__PURE__*/React.createElement("div", {
     className: "container"
   }, /*#__PURE__*/React.createElement("div", {
     className: "filter-bar"
@@ -537,9 +591,9 @@ export function CivicApp() {
     }, "\u2605")), /*#__PURE__*/React.createElement("h3", {
       className: "service-title",
       onClick: () => openServiceModal(s.id)
-    }, s.title), /*#__PURE__*/React.createElement("p", {
+    }, getLocalizedTitle(s, lang)), /*#__PURE__*/React.createElement("p", {
       className: "service-desc"
-    }, s.short_summary || s.description), /*#__PURE__*/React.createElement("div", {
+    }, getLocalizedDescription(s, lang)), /*#__PURE__*/React.createElement("div", {
       className: `verification-pill ${isVerified ? 'verified' : 'unverified'}`
     }, /*#__PURE__*/React.createElement("span", null, isVerified ? '🛡️ ' + t('verifiedBadge') : '⚠️ ' + t('needsVerificationBadge')), /*#__PURE__*/React.createElement("span", {
       className: "last-verified-date"
@@ -1138,7 +1192,7 @@ export function CivicApp() {
     className: "modal-header"
   }, /*#__PURE__*/React.createElement("h3", {
     className: "modal-title"
-  }, selectedService.title), /*#__PURE__*/React.createElement("button", {
+  }, getLocalizedTitle(selectedService, lang)), /*#__PURE__*/React.createElement("button", {
     className: "close-btn",
     onClick: () => setSelectedService(null)
   }, "\u2715")), /*#__PURE__*/React.createElement("div", {
@@ -1176,7 +1230,7 @@ export function CivicApp() {
       color: '#475569',
       lineHeight: '1.6'
     }
-  }, selectedService.description)), /*#__PURE__*/React.createElement("div", {
+  }, getLocalizedDescription(selectedService, lang))), /*#__PURE__*/React.createElement("div", {
     style: {
       display: 'grid',
       gridTemplateColumns: '1fr 1fr',
@@ -1863,7 +1917,183 @@ export function CivicApp() {
     className: "toast-container"
   }, /*#__PURE__*/React.createElement("div", {
     className: "toast"
-  }, /*#__PURE__*/React.createElement("span", null, toast.type === 'error' ? '❌' : toast.type === 'success' ? '✅' : 'ℹ️'), /*#__PURE__*/React.createElement("span", null, toast.message))), /*#__PURE__*/React.createElement("footer", {
+  }, /*#__PURE__*/React.createElement("span", null, toast.type === 'error' ? '❌' : toast.type === 'success' ? '✅' : 'ℹ️'), /*#__PURE__*/React.createElement("span", null, toast.message))), isLangModalOpen && /*#__PURE__*/React.createElement("div", {
+    className: "modal-backdrop",
+    onClick: e => {
+      if (e.target.className === 'modal-backdrop') setIsLangModalOpen(false);
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "modal-dialog",
+    style: {
+      maxWidth: '520px'
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "modal-header"
+  }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("h3", {
+    className: "modal-title",
+    style: {
+      display: 'flex',
+      alignItems: 'center',
+      gap: '8px'
+    }
+  }, /*#__PURE__*/React.createElement("span", null, "\uD83C\uDF10"), " ", t('selectLanguageTitle')), /*#__PURE__*/React.createElement("p", {
+    style: {
+      fontSize: '12px',
+      color: '#64748b',
+      marginTop: '4px'
+    }
+  }, t('selectLanguageSub'))), /*#__PURE__*/React.createElement("button", {
+    className: "close-btn",
+    onClick: () => setIsLangModalOpen(false)
+  }, "\u2715")), /*#__PURE__*/React.createElement("div", {
+    className: "modal-body",
+    style: {
+      display: 'flex',
+      flexDirection: 'column',
+      gap: '14px',
+      padding: '20px'
+    }
+  }, [{
+    code: 'en',
+    flag: '🇬🇧',
+    native: 'English',
+    roman: 'English (EN)',
+    desc: 'Official Pan-India Guidelines, Gazette Citations, and Forms in English.'
+  }, {
+    code: 'te',
+    flag: '🇮🇳',
+    native: 'తెలుగు',
+    roman: 'Telugu (TE)',
+    desc: 'తెలంగాణ మరియు ఆంధ్రప్రదేశ్ ప్రభుత్వ సేవల సమాచారం, మీసేవ, పోర్టల్ లింకులు మరియు పత్రాల చెక్‌లిస్ట్.'
+  }, {
+    code: 'hi',
+    flag: '🇮🇳',
+    native: 'हिन्दी',
+    roman: 'Hindi (HI)',
+    desc: 'अखिल भारतीय एवं राज्य स्तरीय सरकारी सेवाओं, आवश्यक दस्तावेजों की चेकलिस्ट तथा आधिकारिक पोर्टल लिंक्स।'
+  }].map(opt => {
+    const isSelected = lang === opt.code;
+    return /*#__PURE__*/React.createElement("div", {
+      key: opt.code,
+      onClick: () => {
+        setLang(opt.code);
+        localStorage.setItem('civic_lang', opt.code);
+        setIsLangModalOpen(false);
+        const toasts = {
+          en: 'Language set to English',
+          te: 'భాష తెలుగుకి మార్చబడింది (Language set to Telugu)',
+          hi: 'भाषा हिंदी में बदली गई (Language set to Hindi)'
+        };
+        showToast(toasts[opt.code] || 'Language updated', 'success');
+      },
+      style: {
+        padding: '16px 18px',
+        borderRadius: '14px',
+        border: isSelected ? '2px solid #2563eb' : '1px solid #e2e8f0',
+        background: isSelected ? 'linear-gradient(135deg, #eff6ff, #dbeafe)' : '#ffffff',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        cursor: 'pointer',
+        transition: 'all 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
+        boxShadow: isSelected ? '0 6px 16px rgba(37, 99, 235, 0.16)' : '0 1px 3px rgba(0,0,0,0.03)'
+      },
+      onMouseEnter: e => {
+        if (!isSelected) {
+          e.currentTarget.style.borderColor = '#93c5fd';
+          e.currentTarget.style.transform = 'translateY(-2px)';
+          e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.06)';
+        }
+      },
+      onMouseLeave: e => {
+        if (!isSelected) {
+          e.currentTarget.style.borderColor = '#e2e8f0';
+          e.currentTarget.style.transform = 'translateY(0)';
+          e.currentTarget.style.boxShadow = '0 1px 3px rgba(0,0,0,0.03)';
+        }
+      }
+    }, /*#__PURE__*/React.createElement("div", {
+      style: {
+        display: 'flex',
+        alignItems: 'center',
+        gap: '16px'
+      }
+    }, /*#__PURE__*/React.createElement("div", {
+      style: {
+        fontSize: '32px',
+        width: '46px',
+        height: '46px',
+        borderRadius: '50%',
+        background: '#ffffff',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        boxShadow: '0 2px 6px rgba(0,0,0,0.08)'
+      }
+    }, opt.flag), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+      style: {
+        display: 'flex',
+        alignItems: 'center',
+        gap: '8px'
+      }
+    }, /*#__PURE__*/React.createElement("span", {
+      style: {
+        fontSize: '20px',
+        fontWeight: '800',
+        color: isSelected ? '#1e40af' : '#0f172a'
+      }
+    }, opt.native), /*#__PURE__*/React.createElement("span", {
+      style: {
+        fontSize: '13px',
+        color: isSelected ? '#2563eb' : '#64748b',
+        fontWeight: '700'
+      }
+    }, "(", opt.roman, ")")), /*#__PURE__*/React.createElement("p", {
+      style: {
+        fontSize: '12px',
+        color: isSelected ? '#1e3a8a' : '#64748b',
+        marginTop: '3px',
+        lineHeight: 1.4
+      }
+    }, opt.desc))), /*#__PURE__*/React.createElement("div", {
+      style: {
+        marginLeft: '12px',
+        flexShrink: 0
+      }
+    }, isSelected ? /*#__PURE__*/React.createElement("div", {
+      style: {
+        background: '#2563eb',
+        color: '#ffffff',
+        fontSize: '11px',
+        fontWeight: '800',
+        padding: '6px 12px',
+        borderRadius: '999px',
+        display: 'flex',
+        alignItems: 'center',
+        gap: '4px',
+        boxShadow: '0 2px 6px rgba(37, 99, 235, 0.3)'
+      }
+    }, "\u2713 ", t('activeBadge')) : /*#__PURE__*/React.createElement("div", {
+      style: {
+        border: '1px solid #cbd5e1',
+        color: '#475569',
+        fontSize: '11px',
+        fontWeight: '700',
+        padding: '6px 12px',
+        borderRadius: '999px',
+        background: '#f8fafc'
+      }
+    }, "Select \u2192")));
+  })), /*#__PURE__*/React.createElement("div", {
+    className: "modal-footer",
+    style: {
+      justifyContent: 'flex-end',
+      paddingTop: '12px'
+    }
+  }, /*#__PURE__*/React.createElement("button", {
+    className: "btn-secondary",
+    onClick: () => setIsLangModalOpen(false)
+  }, t('close'))))), /*#__PURE__*/React.createElement("footer", {
     className: "site-footer"
   }, /*#__PURE__*/React.createElement("div", {
     className: "container footer-grid"
