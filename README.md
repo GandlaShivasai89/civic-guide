@@ -1,4 +1,5 @@
 # 🏛️ CivicGuide AI – Government Process Assistant
+### Python Full Stack Web Application (HTML, CSS, JavaScript + FastAPI)
 
 > **"Government Services, Explained Simply."**  
 > An authoritative, transparent, and empathetic civic information platform helping ordinary citizens understand government procedures, documentation requirements, eligibility rules, and official fees.
@@ -46,7 +47,7 @@
   Verified Response Synthesis (English, Telugu, Hindi) + Official URL Citations
   ```
 - Grounded strictly in official government records. Never hallucinates or invents rules, fees, or legal requirements.
-- Full support for **Google Gemini API** (`GEMINI_API_KEY`) with an automatic, resilient built-in RAG fallback generator.
+- Full support for **Google Gemini API** (`GEMINI_API_KEY`) with an automatic, resilient built-in Python RAG generator.
 
 ### 3. 🌐 Multilingual Accessibility
 - Full native support for:
@@ -89,185 +90,131 @@
 
 ---
 
-## 🏗️ Project Architecture
+## 🏗️ Python Full Stack Architecture
 
 ```text
-civicguide-ai/
+civic-guide/
 │
-├── frontend/                     # React 18 + TypeScript + Tailwind CSS SPA
-│   ├── src/
-│   │   ├── components/           # UI Components (Header, Cards, Modals, Drawers)
-│   │   ├── services/             # API Client (ApiService)
-│   │   ├── utils/                # Multilingual translations (i18n)
-│   │   ├── App.tsx               # Main Application Layout
-│   │   └── main.tsx              # React Entrypoint
-│   ├── index.html                # Single Page HTML
-│   └── vite.config.ts            # Vite Build & Dev Proxy Config
+├── app/                          # Core Python Full Stack Application
+│   ├── main.py                   # FastAPI Application Entrypoint & Static Server
+│   ├── config.py                 # Pydantic Settings & Environment Variables
+│   ├── database.py               # Relational Database Repository Layer
+│   ├── auth.py                   # JWT Auth, Bcrypt Passwords, Dependencies
+│   ├── seed_data.py              # Authentic Indian Government Datasets (12+ services)
+│   │
+│   ├── ai/                       # Python AI & RAG Engine Layer
+│   │   ├── prompts.py            # Guardrails, Hallucination-prevention Prompts
+│   │   ├── verifier.py           # Domain Verification & Trust Scoring (.gov.in/.nic.in)
+│   │   └── rag_engine.py         # Multi-language Retrieval & Answer Synthesis Engine
+│   │
+│   ├── models/
+│   │   └── schemas.py            # Pydantic Request & Response Data Models
+│   │
+│   ├── routers/                  # FastAPI Modular Routers
+│   │   ├── auth.py               # /api/auth (Login, Register, /me)
+│   │   ├── services.py           # /api/services (Catalog, Search, Sub-resources)
+│   │   ├── ai.py                 # /api/ai (RAG Query, Term Explainer, Wizard)
+│   │   ├── applications.py       # /api/applications (Tracker, Bookmarks, Checklist)
+│   │   ├── reminders.py          # /api/reminders (CRUD Civic Reminders)
+│   │   └── admin.py              # /api/admin (Stats, Verification, Audit History)
+│   │
+│   └── static/                   # Pure HTML5, CSS3, Modern JavaScript Frontend
+│       ├── index.html            # Semantic, Glassmorphic HTML5 Interface
+│       ├── css/
+│       │   └── style.css         # Curated HSL Civic Design Tokens, Glassmorphism, Animations
+│       └── js/
+│           ├── app.js            # Modular Vanilla JavaScript Application State & Views
+│           └── i18n.js           # Multi-language Translations (English, Telugu, Hindi)
 │
-├── backend/                      # Node.js + Express.js + TypeScript REST API
-│   ├── src/
-│   │   ├── controllers/          # Request Handlers (Auth, Services, AI, Admin, Reminders)
-│   │   ├── routes/               # Express Routes
-│   │   ├── middleware/           # Auth, Error Handler, Security
-│   │   ├── models/               # TypeScript Entity Interfaces
-│   │   ├── utils/                # Dual PostgreSQL / Embedded Database Adapter & Seed Data
-│   │   └── server.ts             # Express Server Entrypoint
-│   └── package.json
+├── database/                     # SQL Reference Files
+│   ├── schema/schema.sql         # PostgreSQL DDL
+│   └── seed/seed.sql             # SQL Seed Data
 │
-├── database/                     # Production Database Definitions
-│   ├── schema/
-│   │   └── schema.sql            # Full PostgreSQL DDL Schema (14 Tables, Foreign Keys, Indexes)
-│   └── seed/
-│       └── seed.sql              # Authentic Seed Data for 12+ Services
-│
-├── ai/                           # AI & RAG Engine Layer
-│   ├── prompts/
-│   │   └── systemPrompt.ts       # CivicGuide Guardrails & Instructions
-│   ├── retrieval/
-│   │   └── ragEngine.ts          # Intent Classification & RAG Synthesis Engine
-│   └── verification/
-│       └── sourceVerifier.ts     # URL Authenticity & Conflict Detection
-│
-├── test-suite.js                 # Automated 25-Point Verification Test Suite
+├── run.py                        # Standalone Python Launcher (`python run.py`)
+├── test_suite.py                 # Automated Python Test Suite (25+ tests)
+├── requirements.txt              # Python Dependencies
+├── render.yaml                   # Render Python Web Service Deployment Blueprint
+├── Procfile                      # Render / Heroku Web Process Definition
+├── runtime.txt                   # Python 3.11.9 Runtime Specification
 └── README.md
 ```
 
 ---
 
-## 🛠️ Installation & Setup Guide
+## 🛠️ Quick Start Guide
 
 ### Prerequisites
-- **Node.js**: v18.0.0 or higher (v20+ LTS recommended)
-- **npm**: v9.0.0 or higher
-- *(Optional)* **PostgreSQL**: v14+ (if not running, the application automatically uses the embedded high-performance relational engine).
+- **Python**: v3.10 or higher (Python 3.11 recommended)
+- **pip**: package manager
+- *(Zero Node.js or TypeScript dependencies needed!)*
 
 ### 1. Clone & Enter Project Directory
 ```bash
-cd process
+git clone https://github.com/GandlaShivasai89/civic-guide.git
+cd civic-guide
 ```
 
-### 2. Install Dependencies
+### 2. Install Python Dependencies
 ```bash
-# Install backend dependencies
-cd backend
-npm install
-cd ..
-
-# Install frontend dependencies
-cd frontend
-npm install
-cd ..
+pip install -r requirements.txt
 ```
 
-### 3. Environment Variables
-Create a `.env` file in `backend/` (or copy `.env.example`):
-```ini
-PORT=5000
-NODE_ENV=development
-JWT_SECRET=civicguide_super_secure_jwt_secret_key_2026
-
-# Optional PostgreSQL Connection (falls back automatically if not provided)
-# DATABASE_URL=postgresql://postgres:postgres@localhost:5432/civicguide_db
-
-# Optional Google Gemini API Key for dynamic generation (built-in RAG runs automatically if not set)
-# GEMINI_API_KEY=your_gemini_api_key_here
-```
-
-### 4. Build Frontend Assets
+### 3. Launch the Server
 ```bash
-cd frontend
-npm run build
-cd ..
+python run.py
+```
+Or with Uvicorn directly:
+```bash
+uvicorn app.main:app --host 0.0.0.0 --port 5000 --reload
 ```
 
-### 5. Launch the Application
-```bash
-# Start backend server (serves both API & Frontend bundle at http://localhost:5000)
-cd backend
-npm start
-```
-Open **`http://localhost:5000`** in your browser.
-
-*(Optional for Frontend Hot-Reloading in Development)*:
-```bash
-cd frontend
-npm run dev
-# Accessible at http://localhost:3000 (proxies API calls to port 5000)
-```
+Open **`http://localhost:5000`** in your browser to experience the application.
 
 ---
 
-## 🧪 Automated Testing
+## 🧪 Running Automated Tests
 
-Run the comprehensive 25-point integration test suite:
+Run the comprehensive Python test suite:
 ```bash
-node test-suite.js
+python test_suite.py
 ```
-
-### Verified Test Matrix:
-- ✅ **Test 1**: Health check endpoint (`/api/health`)
-- ✅ **Test 2**: Services Catalog retrieval (12+ authentic services verified)
-- ✅ **Test 3**: Smart Search & State Filtering (Telangana, Pan-India)
-- ✅ **Test 4**: Service Sub-resources (Required Documents, Steps, Sources)
-- ✅ **Test 5**: AI RAG Pipeline & Multi-Language Generation (English, Telugu, Hindi)
-- ✅ **Test 6**: Legal & Government Terminology Explanation (*Non-ECR*, *MeeSeva*, *DigiLocker*)
-- ✅ **Test 7**: Personalized Guidance & Checklist Generation (6 tailored steps)
-- ✅ **Test 8**: Citizen & Administrator Authentication
-- ✅ **Test 9**: Application Tracker & Document Checklist Progression (`NOT_READY` → `READY`)
-- ✅ **Test 10**: Reminders System
-- ✅ **Test 11**: Admin Verification Audit & History Logging
+Validates:
+- Health check & API router availability
+- 12+ government services catalog, search, and state filtering
+- Multi-language RAG queries in **English, Telugu, and Hindi**
+- Personalized guidance wizard checklist generation
+- User registration, authentication, JWT tokens, and demo logins
+- Application tracker CRUD & document readiness toggles
+- Reminders scheduling
+- Admin verification audit trail
+- Static HTML, CSS, and JavaScript asset delivery
 
 ---
 
-## 🔑 Demo Credentials
+## 🚀 Deploying to Render
 
-| Role | Email | Password | Permissions |
-| :--- | :--- | :--- | :--- |
-| **Citizen Demo** | `citizen@example.com` | `Password@123` | View services, track applications, save bookmarks, set reminders |
-| **Admin Demo** | `admin@civicguide.gov.in` | `Password@123` | Manage services, verify official sources, log audit findings |
+This repository is pre-configured with `render.yaml` and `Procfile` for 1-click Python deployment:
 
-*(Quick 1-Click login buttons are available directly inside the Sign-in modal).*
-
----
-
-## 📡 API Reference
-
-### Authentication
-- `POST /api/auth/register` – Register new citizen account
-- `POST /api/auth/login` – Citizen or admin login
-- `GET /api/auth/me` – Current user session info
-
-### Government Services
-- `GET /api/services` – List all services (supports `?category=`, `?state=`, `?mode=`, `?audience=`)
-- `GET /api/services/:id` – Detailed service view with documents, steps, sources, and FAQs
-- `GET /api/services/search?q=` – Smart keyword search across services
-- `GET /api/services/:id/documents` – Document checklist requirements
-- `GET /api/services/:id/steps` – Step-by-step application walkthrough
-- `GET /api/services/:id/sources` – Authoritative government sources & verification status
-
-### AI Assistant (RAG)
-- `POST /api/ai/ask` – Grounded RAG query answering citing official sources
-- `POST /api/ai/explain` – Plain language explanation of complex government terminology
-- `POST /api/ai/guidance` – Personalized checklist generator
-
-### Citizen Tracker & Reminders
-- `GET /api/applications` – User's tracked applications
-- `POST /api/applications` – Save manual application reference
-- `PATCH /api/applications/:id` – Update status / next action
-- `PATCH /api/applications/documents/:docId` – Toggle document readiness (`NOT_READY`, `READY`, `UPLOADED`)
-- `GET /api/applications/saved` – User bookmarked services
-- `POST /api/applications/saved/toggle` – Toggle bookmark
-- `GET /api/reminders` – List citizen reminders
-- `POST /api/reminders` – Create reminder
-- `PATCH /api/reminders/:id` – Toggle reminder completion
-
-### Admin Verification
-- `GET /api/admin/stats` – Service and audit statistics
-- `POST /api/admin/services` – Create new government service
-- `POST /api/admin/services/:id/verify` – Record official source verification action & findings
-- `GET /api/admin/verification-history` – Verification audit trail
+1. Connect your GitHub repository (`GandlaShivasai89/civic-guide`) to Render.
+2. Render detects the Python web service from `render.yaml`:
+   - **Environment**: `Python`
+   - **Build Command**: `pip install -r requirements.txt`
+   - **Start Command**: `uvicorn app.main:app --host 0.0.0.0 --port $PORT`
+   - **Health Check Path**: `/api/health`
+3. Optional environment variables:
+   - `GEMINI_API_KEY`: *(Optional)* Your Google Gemini API key for external LLM generation.
+   - `JWT_SECRET`: Automatic secure secret for authentication.
 
 ---
 
-## 📄 License
-This project is open-source under the MIT License.
+## 🔐 Demo Credentials
+
+| Role | Email | Password | Access |
+|---|---|---|---|
+| **Citizen** | `citizen@example.com` | `Password@123` | Services, RAG Assistant, Applications Tracker, Reminders |
+| **Administrator** | `admin@civicguide.gov.in` | `Password@123` | Full access + Admin Console & Source Verification Audits |
+
+---
+
+## ⚖️ Legal Disclaimer
+CivicGuide AI is an independent, non-governmental civic assistance tool. It does not issue government documents, charge government fees, or represent any public authority. Always verify requirements on official `.gov.in` or `.nic.in` websites before making financial payments.
