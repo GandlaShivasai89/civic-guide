@@ -31,6 +31,16 @@ async def log_requests(request: Request, call_next):
         print(f"[{request.method}] {request.url.path} - {response.status_code}")
     return response
 
+# Global JSON exception handler for unhandled errors
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    import traceback
+    traceback.print_exc()
+    return JSONResponse(
+        status_code=500,
+        content={"success": False, "detail": f"Server error: {str(exc)}"}
+    )
+
 # Register API Routers
 app.include_router(auth.router)
 app.include_router(services.router)

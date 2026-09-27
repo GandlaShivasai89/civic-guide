@@ -20,9 +20,15 @@ async function api(path, options = {}) {
     ...options,
     headers
   });
-  const data = await res.json();
+  const rawText = await res.text();
+  let data;
+  try {
+    data = JSON.parse(rawText);
+  } catch (err) {
+    throw new Error(rawText || `Server returned status ${res.status}`);
+  }
   if (!res.ok) {
-    throw new Error(data.message || data.detail || 'Request failed');
+    throw new Error(data.message || data.detail || `Request failed (${res.status})`);
   }
   return data;
 }

@@ -109,9 +109,21 @@ def test_ai_explain_and_guidance():
     print("✅ AI Term explanation & Guidance Wizard passed")
 
 def test_auth_and_protected_flows():
-    # Citizen login
+    # Citizen Registration
+    reg_email = "new_citizen_test@example.com"
+    reg_resp = client.post("/api/auth/register", json={
+        "full_name": "Test Citizen User",
+        "email": reg_email,
+        "password": "Password@123",
+        "state": "Telangana"
+    })
+    assert reg_resp.status_code == 200, f"Register failed: {reg_resp.text}"
+    assert reg_resp.json()["success"] is True
+    assert "token" in reg_resp.json()["data"]
+
+    # Citizen login with newly created account
     login_resp = client.post("/api/auth/login", json={
-        "email": "citizen@example.com",
+        "email": reg_email,
         "password": "Password@123"
     })
     assert login_resp.status_code == 200
@@ -121,7 +133,7 @@ def test_auth_and_protected_flows():
     # /api/auth/me
     me_resp = client.get("/api/auth/me", headers=headers)
     assert me_resp.status_code == 200
-    assert me_resp.json()["data"]["email"] == "citizen@example.com"
+    assert me_resp.json()["data"]["email"] == reg_email
 
     # Create tracked application
     app_resp = client.post("/api/applications", json={

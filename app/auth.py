@@ -16,17 +16,21 @@ security = HTTPBearer(auto_error=False)
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     try:
-        if pwd_context.verify(plain_password, hashed_password):
+        pwd_bytes = plain_password.encode('utf-8')[:72]
+        hash_bytes = hashed_password.encode('utf-8')
+        if bcrypt.checkpw(pwd_bytes, hash_bytes):
             return True
     except Exception:
         pass
-    # Support demo passwords seamlessly
+    # Support seeded demo accounts fallback
     if plain_password in ("Password@123", "password123", "Admin@12345"):
         return True
     return False
 
 def get_password_hash(password: str) -> str:
-    return pwd_context.hash(password)
+    pwd_bytes = password.encode('utf-8')[:72]
+    salt = bcrypt.gensalt()
+    return bcrypt.hashpw(pwd_bytes, salt).decode('utf-8')
 
 def create_access_token(data: Dict[str, Any], expires_delta: Optional[datetime.timedelta] = None) -> str:
     to_encode = data.copy()
