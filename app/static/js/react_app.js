@@ -54,6 +54,8 @@ export function CivicApp() {
   const [isAuthOpen, setIsAuthOpen] = useState(() => !localStorage.getItem('civic_auth_token'));
   const [authMode, setAuthMode] = useState('login'); // 'login' | 'register'
   const [authError, setAuthError] = useState('');
+  const [authSuccess, setAuthSuccess] = useState('');
+  const [loginPrefillEmail, setLoginPrefillEmail] = useState('');
   const [authLoading, setAuthLoading] = useState(false);
   const [isNewAppOpen, setIsNewAppOpen] = useState(false);
   const [isLangModalOpen, setIsLangModalOpen] = useState(false);
@@ -214,6 +216,7 @@ export function CivicApp() {
   const handleLoginSubmit = async (e) => {
     e.preventDefault();
     setAuthError('');
+    setAuthSuccess('');
     setAuthLoading(true);
     const f = e.target;
     try {
@@ -233,27 +236,29 @@ export function CivicApp() {
     }
   };
 
-  // Handle Register Submit
+  // Handle Register Submit - Redirects to Sign In instead of dashboard
   const handleRegisterSubmit = async (e) => {
     e.preventDefault();
     setAuthError('');
+    setAuthSuccess('');
     setAuthLoading(true);
     const f = e.target;
+    const registeredEmail = f.regEmail.value.trim();
     try {
-      const res = await api('/auth/register', {
+      await api('/auth/register', {
         method: 'POST',
         body: JSON.stringify({
           full_name: f.regName.value.trim(),
-          email: f.regEmail.value.trim(),
+          email: registeredEmail,
           state: f.regState.value,
           password: f.regPassword.value
         })
       });
-      localStorage.setItem('civic_auth_token', res.data.token);
-      localStorage.setItem('civic_user', JSON.stringify(res.data.user));
-      setCurrentUser(res.data.user);
-      showToast(`Account created! Welcome, ${res.data.user.full_name}!`, 'success');
-      setIsAuthOpen(false);
+      // Redirect to signin, not to dashboard
+      setLoginPrefillEmail(registeredEmail);
+      setAuthMode('login');
+      setAuthSuccess('Account created successfully! Please sign in with your email and password.');
+      showToast('Account created! Please sign in.', 'success');
     } catch (err) {
       setAuthError(err.message || 'Registration failed. Please try again.');
     } finally {
@@ -1359,6 +1364,24 @@ export function CivicApp() {
             </div>
 
             <div className="modal-body" style={{ padding: '24px' }}>
+              {authSuccess && (
+                <div style={{
+                  background: '#ecfdf5',
+                  border: '1px solid #a7f3d0',
+                  color: '#065f46',
+                  padding: '12px 14px',
+                  borderRadius: '8px',
+                  fontSize: '13px',
+                  marginBottom: '16px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px'
+                }}>
+                  <span>✅</span>
+                  <span>{authSuccess}</span>
+                </div>
+              )}
+
               {authError && (
                 <div style={{
                   background: '#fef2f2',
@@ -1387,6 +1410,8 @@ export function CivicApp() {
                     <input
                       type="email"
                       name="loginEmail"
+                      key={loginPrefillEmail}
+                      defaultValue={loginPrefillEmail}
                       className="form-control"
                       placeholder="citizen@example.com"
                       required
