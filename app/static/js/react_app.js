@@ -44,7 +44,10 @@ export function CivicApp() {
   const [modalTab, setModalTab] = useState('overview');
   const [isAiOpen, setIsAiOpen] = useState(false);
   const [isWizardOpen, setIsWizardOpen] = useState(false);
-  const [isAuthOpen, setIsAuthOpen] = useState(false);
+  const [isAuthOpen, setIsAuthOpen] = useState(() => !localStorage.getItem('civic_auth_token'));
+  const [authMode, setAuthMode] = useState('login'); // 'login' | 'register'
+  const [authError, setAuthError] = useState('');
+  const [authLoading, setAuthLoading] = useState(false);
   const [isNewAppOpen, setIsNewAppOpen] = useState(false);
   const [isLangModalOpen, setIsLangModalOpen] = useState(false);
 
@@ -200,12 +203,66 @@ export function CivicApp() {
     }
   };
 
+  // Handle Login Submit
+  const handleLoginSubmit = async (e) => {
+    e.preventDefault();
+    setAuthError('');
+    setAuthLoading(true);
+    const f = e.target;
+    try {
+      const res = await api('/auth/login', {
+        method: 'POST',
+        body: JSON.stringify({ email: f.loginEmail.value.trim(), password: f.loginPassword.value })
+      });
+      localStorage.setItem('civic_auth_token', res.data.token);
+      localStorage.setItem('civic_user', JSON.stringify(res.data.user));
+      setCurrentUser(res.data.user);
+      showToast(`Welcome back, ${res.data.user.full_name}!`, 'success');
+      setIsAuthOpen(false);
+    } catch (err) {
+      setAuthError(err.message || 'Login failed. Please verify your email and password.');
+    } finally {
+      setAuthLoading(false);
+    }
+  };
+
+  // Handle Register Submit
+  const handleRegisterSubmit = async (e) => {
+    e.preventDefault();
+    setAuthError('');
+    setAuthLoading(true);
+    const f = e.target;
+    try {
+      const res = await api('/auth/register', {
+        method: 'POST',
+        body: JSON.stringify({
+          full_name: f.regName.value.trim(),
+          email: f.regEmail.value.trim(),
+          state: f.regState.value,
+          password: f.regPassword.value
+        })
+      });
+      localStorage.setItem('civic_auth_token', res.data.token);
+      localStorage.setItem('civic_user', JSON.stringify(res.data.user));
+      setCurrentUser(res.data.user);
+      showToast(`Account created! Welcome, ${res.data.user.full_name}!`, 'success');
+      setIsAuthOpen(false);
+    } catch (err) {
+      setAuthError(err.message || 'Registration failed. Please try again.');
+    } finally {
+      setAuthLoading(false);
+    }
+  };
+
   // Auth logout
   const handleLogout = () => {
     localStorage.removeItem('civic_auth_token');
     localStorage.removeItem('civic_user');
     setCurrentUser(null);
     setSavedIds(new Set());
+    setAuthMode('login');
+    setAuthError('');
+    setIsAuthOpen(true);
     showToast('Signed out successfully');
   };
 
@@ -1202,89 +1259,246 @@ export function CivicApp() {
         </div>
       )}
 
-      {/* AUTH MODAL */}
+      {/* AUTH MODAL (REAL CITIZEN AUTHENTICATION - NO GUEST DEMOS) */}
       {isAuthOpen && (
-        <div className="modal-backdrop" onClick={(e) => { if (e.target.className === 'modal-backdrop') setIsAuthOpen(false); }}>
-          <div className="modal-dialog" style={{ maxWidth: '440px' }}>
-            <div className="modal-header">
-              <h3 className="modal-title">Citizen Account</h3>
-              <button className="close-btn" onClick={() => setIsAuthOpen(false)}>✕</button>
-            </div>
-            <div className="modal-body">
-              {/* Quick Demo Login Buttons */}
-              <div style={{ background: '#eff6ff', padding: '12px', borderRadius: '10px', marginBottom: '18px', border: '1px solid #bfdbfe' }}>
-                <span style={{ fontSize: '11px', fontWeight: '700', color: '#1e40af', textTransform: 'uppercase', display: 'block', marginBottom: '8px' }}>
-                  ⚡ Quick Demo Logins
-                </span>
-                <div style={{ display: 'flex', gap: '8px' }}>
-                  <button
-                    type="button"
-                    className="btn-secondary"
-                    style={{ fontSize: '11px', padding: '6px 10px', flex: 1 }}
-                    onClick={async () => {
-                      const res = await api('/auth/login', {
-                        method: 'POST',
-                        body: JSON.stringify({ email: 'citizen@example.com', password: 'Password@123' })
-                      });
-                      localStorage.setItem('civic_auth_token', res.data.token);
-                      localStorage.setItem('civic_user', JSON.stringify(res.data.user));
-                      setCurrentUser(res.data.user);
-                      showToast('Logged in as Citizen Shiva Sai!', 'success');
-                      setIsAuthOpen(false);
-                    }}
-                  >
-                    👤 Demo Citizen
-                  </button>
-                  <button
-                    type="button"
-                    className="btn-secondary"
-                    style={{ fontSize: '11px', padding: '6px 10px', flex: 1 }}
-                    onClick={async () => {
-                      const res = await api('/auth/login', {
-                        method: 'POST',
-                        body: JSON.stringify({ email: 'admin@civicguide.gov.in', password: 'Password@123' })
-                      });
-                      localStorage.setItem('civic_auth_token', res.data.token);
-                      localStorage.setItem('civic_user', JSON.stringify(res.data.user));
-                      setCurrentUser(res.data.user);
-                      showToast('Logged in as Official Civic Administrator!', 'success');
-                      setIsAuthOpen(false);
-                    }}
-                  >
-                    🛡️ Demo Admin
-                  </button>
+        <div className="modal-backdrop" onClick={(e) => { if (e.target.className === 'modal-backdrop' && currentUser) setIsAuthOpen(false); }}>
+          <div className="modal-dialog" style={{ maxWidth: '440px', padding: 0, overflow: 'hidden' }}>
+            {/* Header Banner */}
+            <div style={{
+              background: 'linear-gradient(135deg, #071527, #0f2744)',
+              color: '#ffffff',
+              padding: '24px 24px 18px 24px',
+              position: 'relative'
+            }}>
+              {currentUser && (
+                <button
+                  className="close-btn"
+                  onClick={() => setIsAuthOpen(false)}
+                  style={{ position: 'absolute', top: '16px', right: '16px', color: '#94a3b8' }}
+                  title="Close"
+                >
+                  ✕
+                </button>
+              )}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <div style={{
+                  width: '42px',
+                  height: '42px',
+                  borderRadius: '10px',
+                  background: 'rgba(255,255,255,0.1)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: '22px',
+                  border: '1px solid rgba(255,255,255,0.15)'
+                }}>
+                  🏛️
+                </div>
+                <div>
+                  <h3 style={{ fontSize: '18px', fontWeight: '800', margin: 0, color: '#ffffff' }}>
+                    CivicGuide AI
+                  </h3>
+                  <p style={{ fontSize: '12px', color: '#94a3b8', margin: '2px 0 0 0' }}>
+                    Official Citizen Portal Access
+                  </p>
                 </div>
               </div>
 
-              <form onSubmit={async (e) => {
-                e.preventDefault();
-                const f = e.target;
-                try {
-                  const res = await api('/auth/login', {
-                    method: 'POST',
-                    body: JSON.stringify({ email: f.loginEmail.value, password: f.loginPassword.value })
-                  });
-                  localStorage.setItem('civic_auth_token', res.data.token);
-                  localStorage.setItem('civic_user', JSON.stringify(res.data.user));
-                  setCurrentUser(res.data.user);
-                  showToast('Signed in successfully!', 'success');
-                  setIsAuthOpen(false);
-                } catch (err) {
-                  showToast(err.message, 'error');
-                }
+              {/* Tab Switcher */}
+              <div style={{
+                display: 'flex',
+                background: 'rgba(255,255,255,0.08)',
+                borderRadius: '8px',
+                padding: '3px',
+                marginTop: '16px'
               }}>
-                <div className="form-group">
-                  <label className="form-label">Email Address</label>
-                  <input type="email" name="loginEmail" className="form-control" placeholder="citizen@example.com" required />
-                </div>
-                <div className="form-group">
-                  <label className="form-label">Password</label>
-                  <input type="password" name="loginPassword" className="form-control" placeholder="••••••••" required />
-                </div>
-                <button type="submit" className="btn-primary" style={{ width: '100%', padding: '11px' }}>
-                  Sign In
+                <button
+                  type="button"
+                  onClick={() => { setAuthMode('login'); setAuthError(''); }}
+                  style={{
+                    flex: 1,
+                    padding: '8px 12px',
+                    borderRadius: '6px',
+                    border: 'none',
+                    background: authMode === 'login' ? '#ffffff' : 'transparent',
+                    color: authMode === 'login' ? '#0f2744' : '#cbd5e1',
+                    fontWeight: '700',
+                    fontSize: '13px',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s'
+                  }}
+                >
+                  🔑 Sign In
                 </button>
-              </form>
+                <button
+                  type="button"
+                  onClick={() => { setAuthMode('register'); setAuthError(''); }}
+                  style={{
+                    flex: 1,
+                    padding: '8px 12px',
+                    borderRadius: '6px',
+                    border: 'none',
+                    background: authMode === 'register' ? '#ffffff' : 'transparent',
+                    color: authMode === 'register' ? '#0f2744' : '#cbd5e1',
+                    fontWeight: '700',
+                    fontSize: '13px',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s'
+                  }}
+                >
+                  📝 Create Account
+                </button>
+              </div>
+            </div>
+
+            <div className="modal-body" style={{ padding: '24px' }}>
+              {authError && (
+                <div style={{
+                  background: '#fef2f2',
+                  border: '1px solid #fecaca',
+                  color: '#b91c1c',
+                  padding: '10px 14px',
+                  borderRadius: '8px',
+                  fontSize: '13px',
+                  marginBottom: '16px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px'
+                }}>
+                  <span>⚠️</span>
+                  <span>{authError}</span>
+                </div>
+              )}
+
+              {authMode === 'login' ? (
+                /* SIGN IN FORM */
+                <form onSubmit={handleLoginSubmit}>
+                  <div className="form-group" style={{ marginBottom: '16px' }}>
+                    <label className="form-label" style={{ fontSize: '13px', fontWeight: '700', color: '#334155' }}>
+                      Email Address
+                    </label>
+                    <input
+                      type="email"
+                      name="loginEmail"
+                      className="form-control"
+                      placeholder="citizen@example.com"
+                      required
+                      autoFocus
+                    />
+                  </div>
+
+                  <div className="form-group" style={{ marginBottom: '20px' }}>
+                    <label className="form-label" style={{ fontSize: '13px', fontWeight: '700', color: '#334155' }}>
+                      Password
+                    </label>
+                    <input
+                      type="password"
+                      name="loginPassword"
+                      className="form-control"
+                      placeholder="Enter your password"
+                      required
+                    />
+                  </div>
+
+                  <button
+                    type="submit"
+                    className="btn-primary"
+                    disabled={authLoading}
+                    style={{ width: '100%', padding: '12px', fontSize: '14px', fontWeight: '700' }}
+                  >
+                    {authLoading ? 'Signing In...' : 'Sign In to Portal →'}
+                  </button>
+
+                  <div style={{ textAlign: 'center', marginTop: '16px', fontSize: '13px', color: '#64748b' }}>
+                    Don't have an account?{' '}
+                    <button
+                      type="button"
+                      onClick={() => { setAuthMode('register'); setAuthError(''); }}
+                      style={{ background: 'none', border: 'none', color: '#2563eb', fontWeight: '700', cursor: 'pointer', padding: 0 }}
+                    >
+                      Create one now
+                    </button>
+                  </div>
+                </form>
+              ) : (
+                /* REGISTRATION FORM */
+                <form onSubmit={handleRegisterSubmit}>
+                  <div className="form-group" style={{ marginBottom: '14px' }}>
+                    <label className="form-label" style={{ fontSize: '13px', fontWeight: '700', color: '#334155' }}>
+                      Full Legal Name
+                    </label>
+                    <input
+                      type="text"
+                      name="regName"
+                      className="form-control"
+                      placeholder="e.g., Shiva Sai"
+                      required
+                      autoFocus
+                    />
+                  </div>
+
+                  <div className="form-group" style={{ marginBottom: '14px' }}>
+                    <label className="form-label" style={{ fontSize: '13px', fontWeight: '700', color: '#334155' }}>
+                      Email Address
+                    </label>
+                    <input
+                      type="email"
+                      name="regEmail"
+                      className="form-control"
+                      placeholder="name@example.com"
+                      required
+                    />
+                  </div>
+
+                  <div className="form-group" style={{ marginBottom: '14px' }}>
+                    <label className="form-label" style={{ fontSize: '13px', fontWeight: '700', color: '#334155' }}>
+                      State / Jurisdiction
+                    </label>
+                    <select name="regState" className="form-control" defaultValue="Telangana">
+                      <option value="Telangana">Telangana</option>
+                      <option value="Andhra Pradesh">Andhra Pradesh</option>
+                      <option value="Maharashtra">Maharashtra</option>
+                      <option value="Karnataka">Karnataka</option>
+                      <option value="Delhi">Delhi</option>
+                      <option value="All-India">All-India / Other</option>
+                    </select>
+                  </div>
+
+                  <div className="form-group" style={{ marginBottom: '20px' }}>
+                    <label className="form-label" style={{ fontSize: '13px', fontWeight: '700', color: '#334155' }}>
+                      Password (min 6 characters)
+                    </label>
+                    <input
+                      type="password"
+                      name="regPassword"
+                      className="form-control"
+                      placeholder="Create secure password"
+                      minLength={6}
+                      required
+                    />
+                  </div>
+
+                  <button
+                    type="submit"
+                    className="btn-primary"
+                    disabled={authLoading}
+                    style={{ width: '100%', padding: '12px', fontSize: '14px', fontWeight: '700' }}
+                  >
+                    {authLoading ? 'Registering Account...' : 'Create Citizen Account →'}
+                  </button>
+
+                  <div style={{ textAlign: 'center', marginTop: '16px', fontSize: '13px', color: '#64748b' }}>
+                    Already have an account?{' '}
+                    <button
+                      type="button"
+                      onClick={() => { setAuthMode('login'); setAuthError(''); }}
+                      style={{ background: 'none', border: 'none', color: '#2563eb', fontWeight: '700', cursor: 'pointer', padding: 0 }}
+                    >
+                      Sign in
+                    </button>
+                  </div>
+                </form>
+              )}
             </div>
           </div>
         </div>

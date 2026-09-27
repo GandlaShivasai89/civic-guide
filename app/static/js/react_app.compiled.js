@@ -50,7 +50,10 @@ export function CivicApp() {
   const [modalTab, setModalTab] = useState('overview');
   const [isAiOpen, setIsAiOpen] = useState(false);
   const [isWizardOpen, setIsWizardOpen] = useState(false);
-  const [isAuthOpen, setIsAuthOpen] = useState(false);
+  const [isAuthOpen, setIsAuthOpen] = useState(() => !localStorage.getItem('civic_auth_token'));
+  const [authMode, setAuthMode] = useState('login'); // 'login' | 'register'
+  const [authError, setAuthError] = useState('');
+  const [authLoading, setAuthLoading] = useState(false);
   const [isNewAppOpen, setIsNewAppOpen] = useState(false);
   const [isLangModalOpen, setIsLangModalOpen] = useState(false);
 
@@ -190,12 +193,69 @@ export function CivicApp() {
     }
   };
 
+  // Handle Login Submit
+  const handleLoginSubmit = async e => {
+    e.preventDefault();
+    setAuthError('');
+    setAuthLoading(true);
+    const f = e.target;
+    try {
+      const res = await api('/auth/login', {
+        method: 'POST',
+        body: JSON.stringify({
+          email: f.loginEmail.value.trim(),
+          password: f.loginPassword.value
+        })
+      });
+      localStorage.setItem('civic_auth_token', res.data.token);
+      localStorage.setItem('civic_user', JSON.stringify(res.data.user));
+      setCurrentUser(res.data.user);
+      showToast(`Welcome back, ${res.data.user.full_name}!`, 'success');
+      setIsAuthOpen(false);
+    } catch (err) {
+      setAuthError(err.message || 'Login failed. Please verify your email and password.');
+    } finally {
+      setAuthLoading(false);
+    }
+  };
+
+  // Handle Register Submit
+  const handleRegisterSubmit = async e => {
+    e.preventDefault();
+    setAuthError('');
+    setAuthLoading(true);
+    const f = e.target;
+    try {
+      const res = await api('/auth/register', {
+        method: 'POST',
+        body: JSON.stringify({
+          full_name: f.regName.value.trim(),
+          email: f.regEmail.value.trim(),
+          state: f.regState.value,
+          password: f.regPassword.value
+        })
+      });
+      localStorage.setItem('civic_auth_token', res.data.token);
+      localStorage.setItem('civic_user', JSON.stringify(res.data.user));
+      setCurrentUser(res.data.user);
+      showToast(`Account created! Welcome, ${res.data.user.full_name}!`, 'success');
+      setIsAuthOpen(false);
+    } catch (err) {
+      setAuthError(err.message || 'Registration failed. Please try again.');
+    } finally {
+      setAuthLoading(false);
+    }
+  };
+
   // Auth logout
   const handleLogout = () => {
     localStorage.removeItem('civic_auth_token');
     localStorage.removeItem('civic_user');
     setCurrentUser(null);
     setSavedIds(new Set());
+    setAuthMode('login');
+    setAuthError('');
+    setIsAuthOpen(true);
     showToast('Signed out successfully');
   };
   return /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
@@ -1687,137 +1747,319 @@ export function CivicApp() {
   }, "Generate Tailored Checklist"))))), isAuthOpen && /*#__PURE__*/React.createElement("div", {
     className: "modal-backdrop",
     onClick: e => {
-      if (e.target.className === 'modal-backdrop') setIsAuthOpen(false);
+      if (e.target.className === 'modal-backdrop' && currentUser) setIsAuthOpen(false);
     }
   }, /*#__PURE__*/React.createElement("div", {
     className: "modal-dialog",
     style: {
-      maxWidth: '440px'
+      maxWidth: '440px',
+      padding: 0,
+      overflow: 'hidden'
     }
   }, /*#__PURE__*/React.createElement("div", {
-    className: "modal-header"
-  }, /*#__PURE__*/React.createElement("h3", {
-    className: "modal-title"
-  }, "Citizen Account"), /*#__PURE__*/React.createElement("button", {
+    style: {
+      background: 'linear-gradient(135deg, #071527, #0f2744)',
+      color: '#ffffff',
+      padding: '24px 24px 18px 24px',
+      position: 'relative'
+    }
+  }, currentUser && /*#__PURE__*/React.createElement("button", {
     className: "close-btn",
-    onClick: () => setIsAuthOpen(false)
-  }, "\u2715")), /*#__PURE__*/React.createElement("div", {
-    className: "modal-body"
-  }, /*#__PURE__*/React.createElement("div", {
+    onClick: () => setIsAuthOpen(false),
     style: {
-      background: '#eff6ff',
-      padding: '12px',
-      borderRadius: '10px',
-      marginBottom: '18px',
-      border: '1px solid #bfdbfe'
-    }
-  }, /*#__PURE__*/React.createElement("span", {
-    style: {
-      fontSize: '11px',
-      fontWeight: '700',
-      color: '#1e40af',
-      textTransform: 'uppercase',
-      display: 'block',
-      marginBottom: '8px'
-    }
-  }, "\u26A1 Quick Demo Logins"), /*#__PURE__*/React.createElement("div", {
+      position: 'absolute',
+      top: '16px',
+      right: '16px',
+      color: '#94a3b8'
+    },
+    title: "Close"
+  }, "\u2715"), /*#__PURE__*/React.createElement("div", {
     style: {
       display: 'flex',
-      gap: '8px'
+      alignItems: 'center',
+      gap: '12px'
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      width: '42px',
+      height: '42px',
+      borderRadius: '10px',
+      background: 'rgba(255,255,255,0.1)',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      fontSize: '22px',
+      border: '1px solid rgba(255,255,255,0.15)'
+    }
+  }, "\uD83C\uDFDB\uFE0F"), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("h3", {
+    style: {
+      fontSize: '18px',
+      fontWeight: '800',
+      margin: 0,
+      color: '#ffffff'
+    }
+  }, "CivicGuide AI"), /*#__PURE__*/React.createElement("p", {
+    style: {
+      fontSize: '12px',
+      color: '#94a3b8',
+      margin: '2px 0 0 0'
+    }
+  }, "Official Citizen Portal Access"))), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'flex',
+      background: 'rgba(255,255,255,0.08)',
+      borderRadius: '8px',
+      padding: '3px',
+      marginTop: '16px'
     }
   }, /*#__PURE__*/React.createElement("button", {
     type: "button",
-    className: "btn-secondary",
-    style: {
-      fontSize: '11px',
-      padding: '6px 10px',
-      flex: 1
+    onClick: () => {
+      setAuthMode('login');
+      setAuthError('');
     },
-    onClick: async () => {
-      const res = await api('/auth/login', {
-        method: 'POST',
-        body: JSON.stringify({
-          email: 'citizen@example.com',
-          password: 'Password@123'
-        })
-      });
-      localStorage.setItem('civic_auth_token', res.data.token);
-      localStorage.setItem('civic_user', JSON.stringify(res.data.user));
-      setCurrentUser(res.data.user);
-      showToast('Logged in as Citizen Shiva Sai!', 'success');
-      setIsAuthOpen(false);
+    style: {
+      flex: 1,
+      padding: '8px 12px',
+      borderRadius: '6px',
+      border: 'none',
+      background: authMode === 'login' ? '#ffffff' : 'transparent',
+      color: authMode === 'login' ? '#0f2744' : '#cbd5e1',
+      fontWeight: '700',
+      fontSize: '13px',
+      cursor: 'pointer',
+      transition: 'all 0.2s'
     }
-  }, "\uD83D\uDC64 Demo Citizen"), /*#__PURE__*/React.createElement("button", {
+  }, "\uD83D\uDD11 Sign In"), /*#__PURE__*/React.createElement("button", {
     type: "button",
-    className: "btn-secondary",
-    style: {
-      fontSize: '11px',
-      padding: '6px 10px',
-      flex: 1
+    onClick: () => {
+      setAuthMode('register');
+      setAuthError('');
     },
-    onClick: async () => {
-      const res = await api('/auth/login', {
-        method: 'POST',
-        body: JSON.stringify({
-          email: 'admin@civicguide.gov.in',
-          password: 'Password@123'
-        })
-      });
-      localStorage.setItem('civic_auth_token', res.data.token);
-      localStorage.setItem('civic_user', JSON.stringify(res.data.user));
-      setCurrentUser(res.data.user);
-      showToast('Logged in as Official Civic Administrator!', 'success');
-      setIsAuthOpen(false);
+    style: {
+      flex: 1,
+      padding: '8px 12px',
+      borderRadius: '6px',
+      border: 'none',
+      background: authMode === 'register' ? '#ffffff' : 'transparent',
+      color: authMode === 'register' ? '#0f2744' : '#cbd5e1',
+      fontWeight: '700',
+      fontSize: '13px',
+      cursor: 'pointer',
+      transition: 'all 0.2s'
     }
-  }, "\uD83D\uDEE1\uFE0F Demo Admin"))), /*#__PURE__*/React.createElement("form", {
-    onSubmit: async e => {
-      e.preventDefault();
-      const f = e.target;
-      try {
-        const res = await api('/auth/login', {
-          method: 'POST',
-          body: JSON.stringify({
-            email: f.loginEmail.value,
-            password: f.loginPassword.value
-          })
-        });
-        localStorage.setItem('civic_auth_token', res.data.token);
-        localStorage.setItem('civic_user', JSON.stringify(res.data.user));
-        setCurrentUser(res.data.user);
-        showToast('Signed in successfully!', 'success');
-        setIsAuthOpen(false);
-      } catch (err) {
-        showToast(err.message, 'error');
-      }
+  }, "\uD83D\uDCDD Create Account"))), /*#__PURE__*/React.createElement("div", {
+    className: "modal-body",
+    style: {
+      padding: '24px'
     }
+  }, authError && /*#__PURE__*/React.createElement("div", {
+    style: {
+      background: '#fef2f2',
+      border: '1px solid #fecaca',
+      color: '#b91c1c',
+      padding: '10px 14px',
+      borderRadius: '8px',
+      fontSize: '13px',
+      marginBottom: '16px',
+      display: 'flex',
+      alignItems: 'center',
+      gap: '8px'
+    }
+  }, /*#__PURE__*/React.createElement("span", null, "\u26A0\uFE0F"), /*#__PURE__*/React.createElement("span", null, authError)), authMode === 'login' ?
+  /*#__PURE__*/
+  /* SIGN IN FORM */
+  React.createElement("form", {
+    onSubmit: handleLoginSubmit
   }, /*#__PURE__*/React.createElement("div", {
-    className: "form-group"
+    className: "form-group",
+    style: {
+      marginBottom: '16px'
+    }
   }, /*#__PURE__*/React.createElement("label", {
-    className: "form-label"
+    className: "form-label",
+    style: {
+      fontSize: '13px',
+      fontWeight: '700',
+      color: '#334155'
+    }
   }, "Email Address"), /*#__PURE__*/React.createElement("input", {
     type: "email",
     name: "loginEmail",
     className: "form-control",
     placeholder: "citizen@example.com",
-    required: true
+    required: true,
+    autoFocus: true
   })), /*#__PURE__*/React.createElement("div", {
-    className: "form-group"
+    className: "form-group",
+    style: {
+      marginBottom: '20px'
+    }
   }, /*#__PURE__*/React.createElement("label", {
-    className: "form-label"
+    className: "form-label",
+    style: {
+      fontSize: '13px',
+      fontWeight: '700',
+      color: '#334155'
+    }
   }, "Password"), /*#__PURE__*/React.createElement("input", {
     type: "password",
     name: "loginPassword",
     className: "form-control",
-    placeholder: "\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022",
+    placeholder: "Enter your password",
     required: true
   })), /*#__PURE__*/React.createElement("button", {
     type: "submit",
     className: "btn-primary",
+    disabled: authLoading,
     style: {
       width: '100%',
-      padding: '11px'
+      padding: '12px',
+      fontSize: '14px',
+      fontWeight: '700'
     }
-  }, "Sign In"))))), isNewAppOpen && /*#__PURE__*/React.createElement("div", {
+  }, authLoading ? 'Signing In...' : 'Sign In to Portal →'), /*#__PURE__*/React.createElement("div", {
+    style: {
+      textAlign: 'center',
+      marginTop: '16px',
+      fontSize: '13px',
+      color: '#64748b'
+    }
+  }, "Don't have an account?", ' ', /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    onClick: () => {
+      setAuthMode('register');
+      setAuthError('');
+    },
+    style: {
+      background: 'none',
+      border: 'none',
+      color: '#2563eb',
+      fontWeight: '700',
+      cursor: 'pointer',
+      padding: 0
+    }
+  }, "Create one now"))) :
+  /*#__PURE__*/
+  /* REGISTRATION FORM */
+  React.createElement("form", {
+    onSubmit: handleRegisterSubmit
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "form-group",
+    style: {
+      marginBottom: '14px'
+    }
+  }, /*#__PURE__*/React.createElement("label", {
+    className: "form-label",
+    style: {
+      fontSize: '13px',
+      fontWeight: '700',
+      color: '#334155'
+    }
+  }, "Full Legal Name"), /*#__PURE__*/React.createElement("input", {
+    type: "text",
+    name: "regName",
+    className: "form-control",
+    placeholder: "e.g., Shiva Sai",
+    required: true,
+    autoFocus: true
+  })), /*#__PURE__*/React.createElement("div", {
+    className: "form-group",
+    style: {
+      marginBottom: '14px'
+    }
+  }, /*#__PURE__*/React.createElement("label", {
+    className: "form-label",
+    style: {
+      fontSize: '13px',
+      fontWeight: '700',
+      color: '#334155'
+    }
+  }, "Email Address"), /*#__PURE__*/React.createElement("input", {
+    type: "email",
+    name: "regEmail",
+    className: "form-control",
+    placeholder: "name@example.com",
+    required: true
+  })), /*#__PURE__*/React.createElement("div", {
+    className: "form-group",
+    style: {
+      marginBottom: '14px'
+    }
+  }, /*#__PURE__*/React.createElement("label", {
+    className: "form-label",
+    style: {
+      fontSize: '13px',
+      fontWeight: '700',
+      color: '#334155'
+    }
+  }, "State / Jurisdiction"), /*#__PURE__*/React.createElement("select", {
+    name: "regState",
+    className: "form-control",
+    defaultValue: "Telangana"
+  }, /*#__PURE__*/React.createElement("option", {
+    value: "Telangana"
+  }, "Telangana"), /*#__PURE__*/React.createElement("option", {
+    value: "Andhra Pradesh"
+  }, "Andhra Pradesh"), /*#__PURE__*/React.createElement("option", {
+    value: "Maharashtra"
+  }, "Maharashtra"), /*#__PURE__*/React.createElement("option", {
+    value: "Karnataka"
+  }, "Karnataka"), /*#__PURE__*/React.createElement("option", {
+    value: "Delhi"
+  }, "Delhi"), /*#__PURE__*/React.createElement("option", {
+    value: "All-India"
+  }, "All-India / Other"))), /*#__PURE__*/React.createElement("div", {
+    className: "form-group",
+    style: {
+      marginBottom: '20px'
+    }
+  }, /*#__PURE__*/React.createElement("label", {
+    className: "form-label",
+    style: {
+      fontSize: '13px',
+      fontWeight: '700',
+      color: '#334155'
+    }
+  }, "Password (min 6 characters)"), /*#__PURE__*/React.createElement("input", {
+    type: "password",
+    name: "regPassword",
+    className: "form-control",
+    placeholder: "Create secure password",
+    minLength: 6,
+    required: true
+  })), /*#__PURE__*/React.createElement("button", {
+    type: "submit",
+    className: "btn-primary",
+    disabled: authLoading,
+    style: {
+      width: '100%',
+      padding: '12px',
+      fontSize: '14px',
+      fontWeight: '700'
+    }
+  }, authLoading ? 'Registering Account...' : 'Create Citizen Account →'), /*#__PURE__*/React.createElement("div", {
+    style: {
+      textAlign: 'center',
+      marginTop: '16px',
+      fontSize: '13px',
+      color: '#64748b'
+    }
+  }, "Already have an account?", ' ', /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    onClick: () => {
+      setAuthMode('login');
+      setAuthError('');
+    },
+    style: {
+      background: 'none',
+      border: 'none',
+      color: '#2563eb',
+      fontWeight: '700',
+      cursor: 'pointer',
+      padding: 0
+    }
+  }, "Sign in")))))), isNewAppOpen && /*#__PURE__*/React.createElement("div", {
     className: "modal-backdrop",
     onClick: e => {
       if (e.target.className === 'modal-backdrop') setIsNewAppOpen(false);
