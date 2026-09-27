@@ -1,5 +1,7 @@
 # 🏛️ CivicGuide AI – Government Process Assistant
-### Python Full Stack Web Application (HTML, CSS, JavaScript + FastAPI)
+### Python Full Stack Web Application (HTML, CSS, JavaScript + React 18 Graphics + FastAPI)
+
+[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/GandlaShivasai89/civic-guide)
 
 > **"Government Services, Explained Simply."**  
 > An authoritative, transparent, and empathetic civic information platform helping ordinary citizens understand government procedures, documentation requirements, eligibility rules, and official fees.
@@ -17,14 +19,14 @@
 
 ### 1. 🔍 Authoritative Government Services Catalog
 - Covers **12+ verified central and state public services**:
-  - **Passport Application (Normal & Tatkaal)** – Ministry of External Affairs (`portal2.passportindia.gov.in`)
-  - **Driving Licence (LLR & Permanent DL)** – MoRTH / Parivahan Sarathi (`parivahan.gov.in`)
-  - **Birth Certificate Registration & Download** – CRS / Municipal Administration (`ghmc.gov.in` / `crsorgi.gov.in`)
-  - **Death Certificate Registration** – Civil Registration System
-  - **Income Certificate** – Revenue Department, Government of Telangana (`tg.meeseva.telangana.gov.in`)
+  - **Passport Application (Normal & Tatkaal)** – Ministry of External Affairs (`www.passportindia.gov.in`)
+  - **Driving Licence (LLR & Permanent DL)** – MoRTH / Parivahan Sarathi (`sarathi.parivahan.gov.in`)
+  - **Birth Certificate Registration & Download** – Civil Registration System (`crsorgi.gov.in`)
+  - **Death Certificate Registration** – Civil Registration System (`crsorgi.gov.in`)
+  - **Income Certificate** – Revenue Department, Government of Telangana (`meeseva.telangana.gov.in`)
   - **Caste & Community Certificate (SC/ST/BC)** – Revenue Department (MeeSeva / e-District)
   - **Residence / Domicile Certificate** – Tahsildar / Revenue Department
-  - **Instant e-PAN & Physical Card** – Income Tax Department (`incometax.gov.in`)
+  - **Instant e-PAN & Physical Card** – Income Tax Department (`www.incometax.gov.in/iec/foportal/`)
   - **Aadhaar Demographic Update & Document Revalidation** – UIDAI (`myaadhaar.uidai.gov.in`)
   - **New Voter Registration (Form 6 & e-EPIC)** – Election Commission of India (`voters.eci.gov.in`)
   - **Post-Matric Scholarship & Fee Reimbursement (ePASS)** – Welfare Departments (`telanganaepass.cgg.gov.in`)
