@@ -1,4 +1,4 @@
-import { DICTIONARY } from './i18n.js';
+import { DICTIONARY, getLocalizedService } from './i18n.js';
 const {
   useState,
   useEffect,
@@ -37,6 +37,16 @@ export function CivicApp() {
       return null;
     }
   });
+
+  // Login & Register Form State ("First I want login and next")
+  const [authMode, setAuthMode] = useState('login'); // 'login' | 'register'
+  const [authEmail, setAuthEmail] = useState('');
+  const [authPassword, setAuthPassword] = useState('');
+  const [authName, setAuthName] = useState('');
+  const [authState, setAuthState] = useState('Telangana');
+  const [authDistrict, setAuthDistrict] = useState('Hyderabad');
+
+  // Catalog State
   const [services, setServices] = useState([]);
   const [categories, setCategories] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
@@ -50,8 +60,26 @@ export function CivicApp() {
   const [modalTab, setModalTab] = useState('overview');
   const [isAiOpen, setIsAiOpen] = useState(false);
   const [isWizardOpen, setIsWizardOpen] = useState(false);
-  const [isAuthOpen, setIsAuthOpen] = useState(false);
   const [isNewAppOpen, setIsNewAppOpen] = useState(false);
+  const [isNewReminderOpen, setIsNewReminderOpen] = useState(false);
+
+  // New Application Form State
+  const [newAppServiceId, setNewAppServiceId] = useState('');
+  const [newAppRef, setNewAppRef] = useState('');
+  const [newAppStatus, setNewAppStatus] = useState('SUBMITTED');
+
+  // New Reminder Form State
+  const [newRemTitle, setNewRemTitle] = useState('');
+  const [newRemDate, setNewRemDate] = useState('');
+  const [newRemNotes, setNewRemNotes] = useState('');
+
+  // Guidance Wizard State
+  const [wizState, setWizState] = useState('Telangana');
+  const [wizAge, setWizAge] = useState('ADULT_18_59');
+  const [wizOcc, setWizOcc] = useState('CITIZEN');
+  const [wizService, setWizService] = useState('srv-passport');
+  const [wizResult, setWizResult] = useState(null);
+  const [isWizLoading, setIsWizLoading] = useState(false);
 
   // Data lists
   const [applications, setApplications] = useState([]);
@@ -60,10 +88,7 @@ export function CivicApp() {
   const [toast, setToast] = useState(null);
 
   // Chat State
-  const [chatMessages, setChatMessages] = useState([{
-    role: 'assistant',
-    text: 'Namaste! I am CivicGuide AI, your official government process assistant. Ask me anything about required documents, statutory fees, eligibility, or application procedures for Indian public services.'
-  }]);
+  const [chatMessages, setChatMessages] = useState([]);
   const [chatInput, setChatInput] = useState('');
   const [isChatLoading, setIsChatLoading] = useState(false);
 
@@ -80,17 +105,26 @@ export function CivicApp() {
     setTimeout(() => setToast(null), 3500);
   };
 
-  // Initial Load
+  // Sync default chat welcome message when language changes
+  useEffect(() => {
+    setChatMessages([{
+      role: 'assistant',
+      text: t('chatWelcome')
+    }]);
+  }, [lang]);
+
+  // Initial Load of catalog
   useEffect(() => {
     api('/services/categories').then(res => setCategories(res.data || [])).catch(console.error);
     api('/services').then(res => setServices(res.data || [])).catch(err => showToast(err.message, 'error'));
-    if (currentUser) {
+    if (currentUser && !currentUser.is_guest) {
       api('/applications/saved').then(res => setSavedIds(new Set((res.data || []).map(s => s.id)))).catch(console.error);
     }
   }, [currentUser]);
 
   // Load section-specific data
   useEffect(() => {
+    if (!currentUser || currentUser.is_guest) return;
     if (activeTab === 'applications') {
       api('/applications').then(res => setApplications(res.data || [])).catch(console.error);
     } else if (activeTab === 'reminders') {
@@ -98,17 +132,22 @@ export function CivicApp() {
     } else if (activeTab === 'admin' && currentUser?.role === 'admin') {
       api('/admin/stats').then(res => setAdminStats(res.data)).catch(console.error);
     }
-  }, [activeTab]);
+  }, [activeTab, currentUser]);
+
+  // Localized list of services for the active language
+  const localizedServices = useMemo(() => {
+    return services.map(s => getLocalizedService(s, lang));
+  }, [services, lang]);
 
   // Filter services
   const filteredServices = useMemo(() => {
-    let list = [...services];
+    let list = [...localizedServices];
     if (searchQuery) {
       const q = searchQuery.toLowerCase().trim();
-      list = list.filter(s => s.title.toLowerCase().includes(q) || s.description && s.description.toLowerCase().includes(q) || s.service_code && s.service_code.toLowerCase().includes(q));
+      list = list.filter(s => s.title.toLowerCase().includes(q) || s.short_summary && s.short_summary.toLowerCase().includes(q) || s.description && s.description.toLowerCase().includes(q) || s.service_code && s.service_code.toLowerCase().includes(q));
     }
     if (selectedCategory !== 'ALL') {
-      list = list.filter(s => s.category === selectedCategory);
+      list = list.filter(s => s.category.toLowerCase().includes(selectedCategory.toLowerCase()) || s.orig_category && s.orig_category === selectedCategory);
     }
     if (selectedState !== 'ALL') {
       list = list.filter(s => s.state === 'All-India' || s.state === selectedState);
@@ -117,10 +156,17 @@ export function CivicApp() {
       list = list.filter(s => s.application_mode === selectedMode);
     }
     return list;
-  }, [services, searchQuery, selectedCategory, selectedState, selectedMode]);
+  }, [localizedServices, searchQuery, selectedCategory, selectedState, selectedMode]);
 
   // Toggle bookmark
   const handleToggleSave = async serviceId => {
+    if (!currentUser || currentUser.is_guest) {
+      showToast('Bookmarks saved for session', 'info');
+      const newSaved = new Set(savedIds);
+      if (newSaved.has(serviceId)) newSaved.delete(serviceId);else newSaved.add(serviceId);
+      setSavedIds(newSaved);
+      return;
+    }
     try {
       const res = await api('/applications/saved/toggle', {
         method: 'POST',
@@ -146,7 +192,8 @@ export function CivicApp() {
   const openServiceModal = async serviceId => {
     try {
       const res = await api(`/services/${serviceId}`);
-      setSelectedService(res.data);
+      const localized = getLocalizedService(res.data, lang);
+      setSelectedService(localized);
       setModalTab('overview');
     } catch (e) {
       showToast(e.message, 'error');
@@ -182,21 +229,315 @@ export function CivicApp() {
     } catch (err) {
       setChatMessages([...newMessages, {
         role: 'assistant',
-        text: 'Sorry, I encountered an issue retrieving verified government records: ' + err.message
+        text: 'Error retrieving verified government records: ' + err.message
       }]);
     } finally {
       setIsChatLoading(false);
     }
   };
 
-  // Auth logout
+  // Auth Submit (Login / Register)
+  const handleAuthSubmit = async e => {
+    e.preventDefault();
+    try {
+      if (authMode === 'login') {
+        const res = await api('/auth/login', {
+          method: 'POST',
+          body: JSON.stringify({
+            email: authEmail,
+            password: authPassword
+          })
+        });
+        localStorage.setItem('civic_auth_token', res.data.token);
+        localStorage.setItem('civic_user', JSON.stringify(res.data.user));
+        setCurrentUser(res.data.user);
+        showToast(`Welcome back, ${res.data.user.full_name}!`, 'success');
+      } else {
+        const res = await api('/auth/register', {
+          method: 'POST',
+          body: JSON.stringify({
+            email: authEmail,
+            password: authPassword,
+            full_name: authName,
+            state: authState,
+            district: authDistrict,
+            preferred_language: lang
+          })
+        });
+        localStorage.setItem('civic_auth_token', res.data.token);
+        localStorage.setItem('civic_user', JSON.stringify(res.data.user));
+        setCurrentUser(res.data.user);
+        showToast('Registration successful! Welcome to CivicGuide.', 'success');
+      }
+    } catch (err) {
+      showToast(err.message, 'error');
+    }
+  };
+
+  // 1-Click Quick Demo Login
+  const handleQuickLogin = async (email, password) => {
+    try {
+      const res = await api('/auth/login', {
+        method: 'POST',
+        body: JSON.stringify({
+          email,
+          password
+        })
+      });
+      localStorage.setItem('civic_auth_token', res.data.token);
+      localStorage.setItem('civic_user', JSON.stringify(res.data.user));
+      setCurrentUser(res.data.user);
+      showToast(`Logged in as ${res.data.user.full_name}`, 'success');
+    } catch (err) {
+      showToast(err.message, 'error');
+    }
+  };
+
+  // Continue as Guest Citizen
+  const handleContinueAsGuest = () => {
+    const guestUser = {
+      id: 'usr-guest',
+      email: 'guest@civicguide.in',
+      full_name: lang === 'te' ? 'అతిథి పౌరుడు (Guest)' : lang === 'hi' ? 'अतिथि नागरिक (Guest)' : 'Guest Citizen',
+      role: 'citizen',
+      is_guest: true
+    };
+    localStorage.setItem('civic_user', JSON.stringify(guestUser));
+    setCurrentUser(guestUser);
+    showToast(lang === 'te' ? 'గెస్ట్ మోడ్‌లో ప్రవేశించారు' : lang === 'hi' ? 'अतिथि मोड में प्रवेश किया' : 'Entered in Guest Citizen Mode', 'info');
+  };
+
+  // Auth logout ("when i open website first i want login and next")
   const handleLogout = () => {
     localStorage.removeItem('civic_auth_token');
     localStorage.removeItem('civic_user');
     setCurrentUser(null);
     setSavedIds(new Set());
-    showToast('Signed out successfully');
+    setActiveTab('services');
+    showToast(lang === 'te' ? 'లాగౌట్ విజయవంతమైంది' : lang === 'hi' ? 'सफलतापूर्वक लॉग आउट किया गया' : 'Signed out successfully');
   };
+
+  // Wizard guidance generator
+  const handleGenerateGuidance = async () => {
+    setIsWizLoading(true);
+    try {
+      const res = await api('/ai/guidance', {
+        method: 'POST',
+        body: JSON.stringify({
+          country: 'India',
+          state: wizState,
+          ageGroup: wizAge,
+          occupation: wizOcc,
+          serviceId: wizService
+        })
+      });
+      setWizResult(res);
+    } catch (err) {
+      showToast(err.message, 'error');
+    } finally {
+      setIsWizLoading(false);
+    }
+  };
+
+  // Add application
+  const handleCreateApplication = async e => {
+    e.preventDefault();
+    try {
+      const res = await api('/applications', {
+        method: 'POST',
+        body: JSON.stringify({
+          service_id: newAppServiceId,
+          application_reference_number: newAppRef,
+          status: newAppStatus
+        })
+      });
+      setApplications([res.data, ...applications]);
+      setIsNewAppOpen(false);
+      setNewAppRef('');
+      showToast('Application tracked successfully', 'success');
+    } catch (err) {
+      showToast(err.message, 'error');
+    }
+  };
+
+  // Add reminder
+  const handleCreateReminder = async e => {
+    e.preventDefault();
+    try {
+      const res = await api('/reminders', {
+        method: 'POST',
+        body: JSON.stringify({
+          title: newRemTitle,
+          reminder_date: newRemDate,
+          notes: newRemNotes
+        })
+      });
+      setReminders([res.data, ...reminders]);
+      setIsNewReminderOpen(false);
+      setNewRemTitle('');
+      setNewRemDate('');
+      setNewRemNotes('');
+      showToast('Reminder added successfully', 'success');
+    } catch (err) {
+      showToast(err.message, 'error');
+    }
+  };
+
+  // Popular search tags localized
+  const popularTags = useMemo(() => {
+    if (lang === 'te') {
+      return ['పాస్‌పోర్ట్', 'డ్రైవింగ్ లైసెన్స్', 'ఆదాయ ధ్రువీకరణ', 'జనన ధ్రువీకరణ', 'కుల ధ్రువీకరణ', 'ఓటర్ ఐడీ', 'ఆధార్', 'స్కాలర్‌షిప్'];
+    } else if (lang === 'hi') {
+      return ['पासपोर्ट', 'ड्राइविंग लाइसेंस', 'आय प्रमाण पत्र', 'जन्म प्रमाण पत्र', 'जाति प्रमाण पत्र', 'वोटर आईडी', 'आधार', 'छात्रवृत्ति'];
+    } else {
+      return ['Passport', 'Driving Licence', 'Income Certificate', 'Birth Certificate', 'Caste Certificate', 'Voter ID', 'Aadhaar', 'Scholarship'];
+    }
+  }, [lang]);
+
+  // =========================================================================
+  // VIEW 1: LOGIN GATEWAY SCREEN ("when i open website first i want login and next")
+  // =========================================================================
+  if (!currentUser) {
+    return /*#__PURE__*/React.createElement("div", {
+      className: "login-gateway-container"
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "top-notice-bar"
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "container notice-inner"
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "notice-left"
+    }, /*#__PURE__*/React.createElement("span", {
+      className: "live-indicator"
+    }), /*#__PURE__*/React.createElement("span", {
+      className: "notice-badge"
+    }, "CIVIC NOTICE:"), /*#__PURE__*/React.createElement("span", {
+      className: "notice-text"
+    }, t('officialNotice'))), /*#__PURE__*/React.createElement("div", {
+      className: "lang-dropdown-wrapper"
+    }, /*#__PURE__*/React.createElement("span", null, "\uD83C\uDF10"), /*#__PURE__*/React.createElement("select", {
+      value: lang,
+      onChange: e => {
+        const newLang = e.target.value;
+        setLang(newLang);
+        localStorage.setItem('civic_lang', newLang);
+      },
+      className: "lang-dropdown",
+      "aria-label": "Select Language"
+    }, /*#__PURE__*/React.createElement("option", {
+      value: "en"
+    }, "English (EN)"), /*#__PURE__*/React.createElement("option", {
+      value: "te"
+    }, "\u0C24\u0C46\u0C32\u0C41\u0C17\u0C41 (Telugu)"), /*#__PURE__*/React.createElement("option", {
+      value: "hi"
+    }, "\u0939\u093F\u0902\u0926\u0940 (Hindi)"))))), /*#__PURE__*/React.createElement("div", {
+      className: "login-hero-card"
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "login-brand-header"
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "brand-emblem-large"
+    }, /*#__PURE__*/React.createElement("svg", {
+      width: "36",
+      height: "36",
+      viewBox: "0 0 24 24",
+      fill: "none",
+      stroke: "currentColor",
+      strokeWidth: "2.2",
+      strokeLinecap: "round",
+      strokeLinejoin: "round"
+    }, /*#__PURE__*/React.createElement("path", {
+      d: "M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"
+    }))), /*#__PURE__*/React.createElement("h1", {
+      className: "login-title"
+    }, t('loginGatewayTitle')), /*#__PURE__*/React.createElement("p", {
+      className: "login-sub"
+    }, t('loginGatewaySubtitle'))), /*#__PURE__*/React.createElement("div", {
+      className: "login-trust-badges"
+    }, /*#__PURE__*/React.createElement("span", {
+      className: "trust-pill"
+    }, t('trustBadge1')), /*#__PURE__*/React.createElement("span", {
+      className: "trust-pill"
+    }, t('trustBadge2')), /*#__PURE__*/React.createElement("span", {
+      className: "trust-pill"
+    }, t('trustBadge3')), /*#__PURE__*/React.createElement("span", {
+      className: "trust-pill"
+    }, t('trustBadge4'))), /*#__PURE__*/React.createElement("div", {
+      className: "login-card-box"
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "login-tabs"
+    }, /*#__PURE__*/React.createElement("button", {
+      className: `login-tab-btn ${authMode === 'login' ? 'active' : ''}`,
+      onClick: () => setAuthMode('login')
+    }, t('tabSignIn')), /*#__PURE__*/React.createElement("button", {
+      className: `login-tab-btn ${authMode === 'register' ? 'active' : ''}`,
+      onClick: () => setAuthMode('register')
+    }, t('tabRegister'))), /*#__PURE__*/React.createElement("form", {
+      onSubmit: handleAuthSubmit,
+      className: "login-form"
+    }, authMode === 'register' && /*#__PURE__*/React.createElement("div", {
+      className: "form-group"
+    }, /*#__PURE__*/React.createElement("label", null, t('fullNameLabel')), /*#__PURE__*/React.createElement("input", {
+      type: "text",
+      className: "form-control",
+      placeholder: "e.g. Shiva Sai",
+      value: authName,
+      onChange: e => setAuthName(e.target.value),
+      required: true
+    })), /*#__PURE__*/React.createElement("div", {
+      className: "form-group"
+    }, /*#__PURE__*/React.createElement("label", null, t('emailLabel')), /*#__PURE__*/React.createElement("input", {
+      type: "email",
+      className: "form-control",
+      placeholder: "citizen@example.com",
+      value: authEmail,
+      onChange: e => setAuthEmail(e.target.value),
+      required: true
+    })), /*#__PURE__*/React.createElement("div", {
+      className: "form-group"
+    }, /*#__PURE__*/React.createElement("label", null, t('passwordLabel')), /*#__PURE__*/React.createElement("input", {
+      type: "password",
+      className: "form-control",
+      placeholder: "\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022",
+      value: authPassword,
+      onChange: e => setAuthPassword(e.target.value),
+      required: true
+    })), /*#__PURE__*/React.createElement("button", {
+      type: "submit",
+      className: "btn-primary",
+      style: {
+        width: '100%',
+        padding: '12px',
+        fontSize: '15px'
+      }
+    }, authMode === 'login' ? t('btnSignInAction') : t('btnRegisterAction'))), /*#__PURE__*/React.createElement("div", {
+      className: "quick-access-section"
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "divider-text"
+    }, /*#__PURE__*/React.createElement("span", null, t('quickDemoTitle'))), /*#__PURE__*/React.createElement("div", {
+      className: "quick-buttons-stack"
+    }, /*#__PURE__*/React.createElement("button", {
+      type: "button",
+      className: "btn-quick-demo citizen",
+      onClick: () => handleQuickLogin('citizen@example.com', 'Password@123')
+    }, t('demoCitizenBtn')), /*#__PURE__*/React.createElement("button", {
+      type: "button",
+      className: "btn-quick-demo admin",
+      onClick: () => handleQuickLogin('admin@civicguide.gov.in', 'Password@123')
+    }, t('demoAdminBtn')), /*#__PURE__*/React.createElement("button", {
+      type: "button",
+      className: "btn-quick-guest",
+      onClick: handleContinueAsGuest
+    }, t('continueGuestBtn'))), /*#__PURE__*/React.createElement("p", {
+      className: "guest-note"
+    }, t('guestNotice'))))), toast && /*#__PURE__*/React.createElement("div", {
+      className: "toast-container"
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "toast"
+    }, /*#__PURE__*/React.createElement("span", null, toast.type === 'error' ? '❌' : toast.type === 'success' ? '✅' : 'ℹ️'), /*#__PURE__*/React.createElement("span", null, toast.message))));
+  }
+
+  // =========================================================================
+  // VIEW 2: MAIN CIVIC PORTAL (Rendered after Login - "next")
+  // =========================================================================
   return /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
     className: "top-notice-bar"
   }, /*#__PURE__*/React.createElement("div", {
@@ -214,8 +555,9 @@ export function CivicApp() {
   }, /*#__PURE__*/React.createElement("span", null, "\uD83C\uDF10"), /*#__PURE__*/React.createElement("select", {
     value: lang,
     onChange: e => {
-      setLang(e.target.value);
-      localStorage.setItem('civic_lang', e.target.value);
+      const newLang = e.target.value;
+      setLang(newLang);
+      localStorage.setItem('civic_lang', newLang);
     },
     className: "lang-dropdown",
     "aria-label": "Select Language"
@@ -252,36 +594,36 @@ export function CivicApp() {
     }
   }, /*#__PURE__*/React.createElement("span", {
     className: "brand-title"
-  }, "CivicGuide"), /*#__PURE__*/React.createElement("span", {
+  }, t('brandTitle')), /*#__PURE__*/React.createElement("span", {
     className: "ai-pill"
   }, "AI")), /*#__PURE__*/React.createElement("p", {
     className: "brand-sub"
-  }, "Government Process Assistant"))), /*#__PURE__*/React.createElement("nav", {
+  }, t('brandSub')))), /*#__PURE__*/React.createElement("nav", {
     className: "nav-links"
   }, /*#__PURE__*/React.createElement("button", {
     className: `nav-btn ${activeTab === 'services' ? 'active' : ''}`,
     onClick: () => setActiveTab('services')
-  }, /*#__PURE__*/React.createElement("span", null, "\uD83C\uDFDB\uFE0F"), " Services"), /*#__PURE__*/React.createElement("button", {
+  }, /*#__PURE__*/React.createElement("span", null, "\uD83C\uDFDB\uFE0F"), " ", t('navServices')), /*#__PURE__*/React.createElement("button", {
     className: `nav-btn ${isAiOpen ? 'active' : ''}`,
     onClick: () => setIsAiOpen(true)
-  }, /*#__PURE__*/React.createElement("span", null, "\u2728"), " Ask Civic AI"), /*#__PURE__*/React.createElement("button", {
+  }, /*#__PURE__*/React.createElement("span", null, "\u2728"), " ", t('navChat')), /*#__PURE__*/React.createElement("button", {
     className: `nav-btn ${activeTab === 'applications' ? 'active' : ''}`,
     onClick: () => setActiveTab('applications')
-  }, /*#__PURE__*/React.createElement("span", null, "\uD83D\uDCCB"), " My Applications"), /*#__PURE__*/React.createElement("button", {
+  }, /*#__PURE__*/React.createElement("span", null, "\uD83D\uDCCB"), " ", t('navApplications')), /*#__PURE__*/React.createElement("button", {
     className: `nav-btn ${activeTab === 'reminders' ? 'active' : ''}`,
     onClick: () => setActiveTab('reminders')
-  }, /*#__PURE__*/React.createElement("span", null, "\uD83D\uDD14"), " Reminders"), currentUser?.role === 'admin' && /*#__PURE__*/React.createElement("button", {
+  }, /*#__PURE__*/React.createElement("span", null, "\uD83D\uDD14"), " ", t('navReminders')), currentUser?.role === 'admin' && /*#__PURE__*/React.createElement("button", {
     className: `nav-btn ${activeTab === 'admin' ? 'active' : ''}`,
     onClick: () => setActiveTab('admin'),
     style: {
       color: '#7c3aed'
     }
-  }, /*#__PURE__*/React.createElement("span", null, "\uD83D\uDEE1\uFE0F"), " Admin Console")), /*#__PURE__*/React.createElement("div", {
+  }, /*#__PURE__*/React.createElement("span", null, "\uD83D\uDEE1\uFE0F"), " ", t('navAdmin'))), /*#__PURE__*/React.createElement("div", {
     className: "header-actions"
   }, /*#__PURE__*/React.createElement("button", {
     className: "btn-gold",
     onClick: () => setIsWizardOpen(true)
-  }, /*#__PURE__*/React.createElement("span", null, "\u2728"), " ", t('getGuidance')), currentUser ? /*#__PURE__*/React.createElement("div", {
+  }, /*#__PURE__*/React.createElement("span", null, "\u2728"), " ", t('btnWizard')), /*#__PURE__*/React.createElement("div", {
     style: {
       display: 'flex',
       alignItems: 'center',
@@ -300,26 +642,23 @@ export function CivicApp() {
       fontWeight: '700',
       fontSize: '13px'
     }
-  }, currentUser.full_name.charAt(0)), /*#__PURE__*/React.createElement("span", {
+  }, currentUser.full_name ? currentUser.full_name.charAt(0) : 'U'), /*#__PURE__*/React.createElement("span", {
     style: {
       fontSize: '13px',
       fontWeight: '700'
     }
-  }, currentUser.full_name.split(' ')[0]), /*#__PURE__*/React.createElement("button", {
+  }, currentUser.full_name ? currentUser.full_name.split(' ')[0] : 'Citizen'), /*#__PURE__*/React.createElement("button", {
     onClick: handleLogout,
+    className: "btn-secondary",
     style: {
-      background: 'none',
-      border: 'none',
-      cursor: 'pointer',
-      color: '#ef4444',
-      fontSize: '14px',
-      padding: '4px'
+      padding: '6px 10px',
+      fontSize: '12px',
+      display: 'flex',
+      alignItems: 'center',
+      gap: '4px'
     },
-    title: "Logout"
-  }, "\uD83D\uDEAA")) : /*#__PURE__*/React.createElement("button", {
-    className: "btn-primary",
-    onClick: () => setIsAuthOpen(true)
-  }, /*#__PURE__*/React.createElement("span", null, "\uD83D\uDC64"), " ", t('login'))))), activeTab === 'services' && /*#__PURE__*/React.createElement("main", null, /*#__PURE__*/React.createElement("section", {
+    title: "Sign Out"
+  }, /*#__PURE__*/React.createElement("span", null, "\uD83D\uDEAA"), " ", t('btnLogout')))))), activeTab === 'services' && /*#__PURE__*/React.createElement("main", null, /*#__PURE__*/React.createElement("section", {
     className: "hero-section"
   }, /*#__PURE__*/React.createElement("div", {
     className: "hero-decor-orb-1"
@@ -333,7 +672,7 @@ export function CivicApp() {
     }
   }, /*#__PURE__*/React.createElement("div", {
     className: "hero-tag"
-  }, /*#__PURE__*/React.createElement("span", null, "\uD83C\uDDEE\uD83C\uDDF3"), " National Citizen Information Initiative"), /*#__PURE__*/React.createElement("h1", {
+  }, /*#__PURE__*/React.createElement("span", null, "\uD83C\uDDEE\uD83C\uDDF3"), " ", t('nationalInitiative')), /*#__PURE__*/React.createElement("h1", {
     className: "hero-title"
   }, t('heroTitle')), /*#__PURE__*/React.createElement("p", {
     className: "hero-subtitle"
@@ -378,7 +717,7 @@ export function CivicApp() {
     }
   }, "\u2715"))), /*#__PURE__*/React.createElement("div", {
     className: "quick-tags"
-  }, /*#__PURE__*/React.createElement("span", null, t('popularSearches')), ['Passport', 'Driving Licence', 'Income Certificate', 'Birth Certificate', 'Caste Certificate', 'Voter ID', 'Aadhaar', 'Scholarship'].map(tag => /*#__PURE__*/React.createElement("button", {
+  }, /*#__PURE__*/React.createElement("span", null, t('popularSearches')), popularTags.map(tag => /*#__PURE__*/React.createElement("button", {
     key: tag,
     className: "tag-chip",
     onClick: () => setSearchQuery(tag)
@@ -393,9 +732,9 @@ export function CivicApp() {
     }
   }, "\uD83C\uDFDB\uFE0F"), /*#__PURE__*/React.createElement("div", {
     className: "metric-value"
-  }, "12+"), /*#__PURE__*/React.createElement("div", {
+  }, t('metricPortalsVal')), /*#__PURE__*/React.createElement("div", {
     className: "metric-label"
-  }, "Official Portals")), /*#__PURE__*/React.createElement("div", {
+  }, t('metricPortalsLbl'))), /*#__PURE__*/React.createElement("div", {
     className: "metric-card"
   }, /*#__PURE__*/React.createElement("div", {
     style: {
@@ -404,9 +743,9 @@ export function CivicApp() {
     }
   }, "\u26A1"), /*#__PURE__*/React.createElement("div", {
     className: "metric-value"
-  }, "100%"), /*#__PURE__*/React.createElement("div", {
+  }, t('metricRagVal')), /*#__PURE__*/React.createElement("div", {
     className: "metric-label"
-  }, "Grounded RAG")), /*#__PURE__*/React.createElement("div", {
+  }, t('metricRagLbl'))), /*#__PURE__*/React.createElement("div", {
     className: "metric-card"
   }, /*#__PURE__*/React.createElement("div", {
     style: {
@@ -415,9 +754,9 @@ export function CivicApp() {
     }
   }, "\uD83D\uDEE1\uFE0F"), /*#__PURE__*/React.createElement("div", {
     className: "metric-value"
-  }, "Zero"), /*#__PURE__*/React.createElement("div", {
+  }, t('metricToutsVal')), /*#__PURE__*/React.createElement("div", {
     className: "metric-label"
-  }, "Touts Guarantee")), /*#__PURE__*/React.createElement("div", {
+  }, t('metricToutsLbl'))), /*#__PURE__*/React.createElement("div", {
     className: "metric-card"
   }, /*#__PURE__*/React.createElement("div", {
     style: {
@@ -426,18 +765,32 @@ export function CivicApp() {
     }
   }, "\uD83C\uDF10"), /*#__PURE__*/React.createElement("div", {
     className: "metric-value"
-  }, "3"), /*#__PURE__*/React.createElement("div", {
+  }, t('metricLangVal')), /*#__PURE__*/React.createElement("div", {
     className: "metric-label"
-  }, "Languages (EN/TE/HI)"))), /*#__PURE__*/React.createElement("div", {
+  }, t('metricLangLbl')))), /*#__PURE__*/React.createElement("div", {
     className: "category-badges-shelf"
   }, /*#__PURE__*/React.createElement("button", {
     className: `cat-pill-btn ${selectedCategory === 'ALL' ? 'active' : ''}`,
     onClick: () => setSelectedCategory('ALL')
-  }, /*#__PURE__*/React.createElement("span", null, "\uD83C\uDF1F"), " All Categories"), categories.map(cat => /*#__PURE__*/React.createElement("button", {
-    key: cat,
-    className: `cat-pill-btn ${selectedCategory === cat ? 'active' : ''}`,
-    onClick: () => setSelectedCategory(cat)
-  }, /*#__PURE__*/React.createElement("span", null, cat.includes('Identity') ? '🛂' : cat.includes('Transport') ? '🚗' : cat.includes('Revenue') ? '📜' : cat.includes('Civil') ? '👶' : cat.includes('Education') ? '🎓' : '🏢'), cat))))), /*#__PURE__*/React.createElement("div", {
+  }, /*#__PURE__*/React.createElement("span", null, "\uD83C\uDF1F"), " ", t('catAll')), /*#__PURE__*/React.createElement("button", {
+    className: `cat-pill-btn ${selectedCategory === 'Identity' ? 'active' : ''}`,
+    onClick: () => setSelectedCategory('Identity')
+  }, /*#__PURE__*/React.createElement("span", null, "\uD83D\uDEC2"), " ", t('catIdentity')), /*#__PURE__*/React.createElement("button", {
+    className: `cat-pill-btn ${selectedCategory === 'Transport' ? 'active' : ''}`,
+    onClick: () => setSelectedCategory('Transport')
+  }, /*#__PURE__*/React.createElement("span", null, "\uD83D\uDE97"), " ", t('catTransport')), /*#__PURE__*/React.createElement("button", {
+    className: `cat-pill-btn ${selectedCategory === 'Revenue' ? 'active' : ''}`,
+    onClick: () => setSelectedCategory('Revenue')
+  }, /*#__PURE__*/React.createElement("span", null, "\uD83D\uDCDC"), " ", t('catRevenue')), /*#__PURE__*/React.createElement("button", {
+    className: `cat-pill-btn ${selectedCategory === 'Civil' ? 'active' : ''}`,
+    onClick: () => setSelectedCategory('Civil')
+  }, /*#__PURE__*/React.createElement("span", null, "\uD83D\uDC76"), " ", t('catCivil')), /*#__PURE__*/React.createElement("button", {
+    className: `cat-pill-btn ${selectedCategory === 'Business' ? 'active' : ''}`,
+    onClick: () => setSelectedCategory('Business')
+  }, /*#__PURE__*/React.createElement("span", null, "\uD83D\uDCBC"), " ", t('catBusiness')), /*#__PURE__*/React.createElement("button", {
+    className: `cat-pill-btn ${selectedCategory === 'Education' ? 'active' : ''}`,
+    onClick: () => setSelectedCategory('Education')
+  }, /*#__PURE__*/React.createElement("span", null, "\uD83C\uDF93"), " ", t('catEducation'))))), /*#__PURE__*/React.createElement("div", {
     className: "container"
   }, /*#__PURE__*/React.createElement("div", {
     className: "filter-bar"
@@ -449,13 +802,13 @@ export function CivicApp() {
       fontWeight: '700',
       color: '#475569'
     }
-  }, "JURISDICTION:"), /*#__PURE__*/React.createElement("select", {
+  }, t('filterJurisdiction')), /*#__PURE__*/React.createElement("select", {
     value: selectedState,
     onChange: e => setSelectedState(e.target.value),
     className: "filter-select"
   }, /*#__PURE__*/React.createElement("option", {
     value: "ALL"
-  }, "All States / Pan-India"), /*#__PURE__*/React.createElement("option", {
+  }, t('allStates')), /*#__PURE__*/React.createElement("option", {
     value: "Telangana"
   }, "Telangana"), /*#__PURE__*/React.createElement("option", {
     value: "Andhra Pradesh"
@@ -472,115 +825,74 @@ export function CivicApp() {
       color: '#475569',
       marginLeft: '8px'
     }
-  }, "MODE:"), /*#__PURE__*/React.createElement("select", {
+  }, t('filterMode')), /*#__PURE__*/React.createElement("select", {
     value: selectedMode,
     onChange: e => setSelectedMode(e.target.value),
     className: "filter-select"
   }, /*#__PURE__*/React.createElement("option", {
     value: "ALL"
-  }, "All Modes"), /*#__PURE__*/React.createElement("option", {
+  }, t('allModes')), /*#__PURE__*/React.createElement("option", {
     value: "ONLINE"
-  }, "Online Portal"), /*#__PURE__*/React.createElement("option", {
+  }, t('modeOnline')), /*#__PURE__*/React.createElement("option", {
     value: "OFFLINE"
-  }, "Offline Office"), /*#__PURE__*/React.createElement("option", {
+  }, t('modeOffline')), /*#__PURE__*/React.createElement("option", {
     value: "HYBRID"
-  }, "Hybrid"))), /*#__PURE__*/React.createElement("div", {
+  }, t('modeHybrid')))), /*#__PURE__*/React.createElement("div", {
     className: "results-counter"
-  }, filteredServices.length, " services found")), /*#__PURE__*/React.createElement("div", {
+  }, filteredServices.length, " ", t('serviceCountSuffix'))), /*#__PURE__*/React.createElement("div", {
     className: "services-grid"
-  }, filteredServices.length === 0 ? /*#__PURE__*/React.createElement("div", {
-    style: {
-      gridColumn: '1/-1',
-      textAlign: 'center',
-      padding: '60px 20px',
-      background: '#fff',
-      borderRadius: '16px',
-      border: '1px solid #e2e8f0'
-    }
-  }, /*#__PURE__*/React.createElement("p", {
-    style: {
-      fontSize: '32px',
-      marginBottom: '8px'
-    }
-  }, "\uD83D\uDD0D"), /*#__PURE__*/React.createElement("h4", {
-    style: {
-      fontWeight: '700',
-      color: '#0f172a',
-      marginBottom: '4px'
-    }
-  }, "No matching government services found"), /*#__PURE__*/React.createElement("p", {
-    style: {
-      fontSize: '13px',
-      color: '#64748b'
-    }
-  }, "Try adjusting your search query or jurisdiction filters.")) : filteredServices.map(s => {
-    const isSaved = savedIds.has(s.id);
-    const isVerified = s.verification_status === 'VERIFIED';
-    const feeSnippet = s.fee_structure ? s.fee_structure.split(';')[0] : 'Check Portal';
+  }, filteredServices.map(srv => {
+    const isSaved = savedIds.has(srv.id);
     return /*#__PURE__*/React.createElement("div", {
-      key: s.id,
+      key: srv.id,
       className: "service-card"
-    }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
-      className: "card-header-meta"
     }, /*#__PURE__*/React.createElement("div", {
-      className: "meta-badges"
-    }, /*#__PURE__*/React.createElement("span", {
-      className: "badge-dept"
-    }, s.department?.code || 'GOVT'), /*#__PURE__*/React.createElement("span", {
-      className: "badge-state"
-    }, s.state), /*#__PURE__*/React.createElement("span", {
-      className: "badge-mode"
-    }, s.application_mode)), /*#__PURE__*/React.createElement("button", {
-      className: `bookmark-btn ${isSaved ? 'saved' : ''}`,
-      onClick: () => handleToggleSave(s.id),
-      title: isSaved ? 'Remove bookmark' : 'Bookmark service'
-    }, "\u2605")), /*#__PURE__*/React.createElement("h3", {
-      className: "service-title",
-      onClick: () => openServiceModal(s.id)
-    }, s.title), /*#__PURE__*/React.createElement("p", {
-      className: "service-desc"
-    }, s.short_summary || s.description), /*#__PURE__*/React.createElement("div", {
-      className: `verification-pill ${isVerified ? 'verified' : 'unverified'}`
-    }, /*#__PURE__*/React.createElement("span", null, isVerified ? '🛡️ ' + t('verifiedBadge') : '⚠️ ' + t('needsVerificationBadge')), /*#__PURE__*/React.createElement("span", {
-      className: "last-verified-date"
-    }, t('lastVerified'), ": ", s.last_verified)), /*#__PURE__*/React.createElement("div", {
-      className: "card-facts"
+      className: "service-card-header"
     }, /*#__PURE__*/React.createElement("div", {
-      className: "fact-item"
+      className: "service-card-meta"
     }, /*#__PURE__*/React.createElement("span", {
-      className: "fact-label"
-    }, t('fees')), /*#__PURE__*/React.createElement("span", {
-      className: "fact-value",
-      title: s.fee_structure
-    }, "\uD83D\uDCB0 ", feeSnippet)), /*#__PURE__*/React.createElement("div", {
-      className: "fact-item"
+      className: "service-badge-category"
+    }, srv.category), /*#__PURE__*/React.createElement("span", {
+      className: "service-badge-verified"
+    }, /*#__PURE__*/React.createElement("span", null, "\u2713"), " ", t('badgeOfficial'))), /*#__PURE__*/React.createElement("button", {
+      className: `btn-bookmark ${isSaved ? 'active' : ''}`,
+      onClick: () => handleToggleSave(srv.id),
+      title: isSaved ? t('btnSaved') : t('btnSave')
+    }, isSaved ? '★' : '☆')), /*#__PURE__*/React.createElement("h3", {
+      className: "service-card-title"
+    }, srv.title), /*#__PURE__*/React.createElement("p", {
+      className: "service-card-desc"
+    }, srv.short_summary || srv.description), /*#__PURE__*/React.createElement("div", {
+      className: "service-card-details"
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "detail-item"
     }, /*#__PURE__*/React.createElement("span", {
-      className: "fact-label"
-    }, t('processingTime')), /*#__PURE__*/React.createElement("span", {
-      className: "fact-value"
-    }, "\u23F1\uFE0F ", s.processing_time)))), /*#__PURE__*/React.createElement("div", {
-      className: "card-actions"
+      className: "detail-label"
+    }, t('lblProcessing')), /*#__PURE__*/React.createElement("span", {
+      className: "detail-value"
+    }, srv.processing_time || '7-15 Days')), /*#__PURE__*/React.createElement("div", {
+      className: "detail-item"
+    }, /*#__PURE__*/React.createElement("span", {
+      className: "detail-label"
+    }, t('lblFees')), /*#__PURE__*/React.createElement("span", {
+      className: "detail-value",
+      style: {
+        color: '#0f766e',
+        fontWeight: '700'
+      }
+    }, srv.fee_structure ? srv.fee_structure.split(';')[0] : t('freeFee')))), /*#__PURE__*/React.createElement("div", {
+      className: "service-card-actions"
     }, /*#__PURE__*/React.createElement("button", {
       className: "btn-primary",
-      onClick: () => openServiceModal(s.id)
-    }, /*#__PURE__*/React.createElement("span", null, "\uD83D\uDCCB"), " ", t('viewDetails')), /*#__PURE__*/React.createElement("button", {
-      className: "btn-gold",
-      onClick: () => {
-        setIsAiOpen(true);
-        handleSendMessage(`Explain required documents and process for ${s.title}`, s.id);
+      style: {
+        width: '100%'
       },
-      title: "Ask AI"
-    }, "\u2728"), /*#__PURE__*/React.createElement("a", {
-      href: s.official_url,
-      target: "_blank",
-      rel: "noopener noreferrer",
-      className: "btn-secondary",
-      title: "Open Verified Official Government Portal"
-    }, "\uD83D\uDD17")));
-  })))), activeTab === 'applications' && /*#__PURE__*/React.createElement("main", {
+      onClick: () => openServiceModal(srv.id)
+    }, /*#__PURE__*/React.createElement("span", null, "\uD83D\uDCC4"), " ", t('btnViewDetails'))));
+  })))), activeTab === 'applications' && /*#__PURE__*/React.createElement("div", {
     className: "container",
     style: {
-      padding: '40px 20px'
+      padding: '36px 0'
     }
   }, /*#__PURE__*/React.createElement("div", {
     style: {
@@ -593,382 +905,245 @@ export function CivicApp() {
     style: {
       fontSize: '24px',
       fontWeight: '800',
-      color: '#0f2744'
+      color: '#0f172a'
     }
-  }, "My Tracked Applications"), /*#__PURE__*/React.createElement("p", {
+  }, t('appsTitle')), /*#__PURE__*/React.createElement("p", {
     style: {
-      fontSize: '13px',
-      color: '#64748b'
-    }
-  }, "Monitor documents readiness, application tokens, and stage progression.")), /*#__PURE__*/React.createElement("button", {
-    className: "btn-primary",
-    onClick: () => setIsNewAppOpen(true)
-  }, "+ Track New Application")), applications.length === 0 ? /*#__PURE__*/React.createElement("div", {
-    style: {
-      textAlign: 'center',
-      padding: '60px 20px',
-      background: '#fff',
-      borderRadius: '16px',
-      border: '1px solid #e2e8f0'
-    }
-  }, /*#__PURE__*/React.createElement("p", {
-    style: {
-      fontSize: '32px',
-      marginBottom: '12px'
-    }
-  }, "\uD83D\uDCC1"), /*#__PURE__*/React.createElement("h3", {
-    style: {
-      fontWeight: '700',
-      color: '#0f172a',
-      marginBottom: '6px'
-    }
-  }, "No tracked applications yet"), /*#__PURE__*/React.createElement("p", {
-    style: {
-      fontSize: '13px',
       color: '#64748b',
-      marginBottom: '20px'
+      fontSize: '14px'
     }
-  }, "Add an ongoing government application or open any service to track your documentation readiness."), /*#__PURE__*/React.createElement("button", {
+  }, t('appsSubtitle'))), /*#__PURE__*/React.createElement("button", {
     className: "btn-primary",
     onClick: () => setIsNewAppOpen(true)
-  }, "+ Track New Application")) : /*#__PURE__*/React.createElement("div", {
+  }, t('btnNewApp'))), applications.length === 0 ? /*#__PURE__*/React.createElement("div", {
     style: {
-      display: 'flex',
-      flexDirection: 'column',
-      gap: '16px'
-    }
-  }, applications.map(app => {
-    const docs = app.documents || [];
-    const readyCount = docs.filter(d => d.status === 'READY' || d.status === 'UPLOADED').length;
-    const progressPct = docs.length ? Math.round(readyCount / docs.length * 100) : 0;
-    return /*#__PURE__*/React.createElement("div", {
-      key: app.id,
-      style: {
-        background: '#fff',
-        border: '1px solid #e2e8f0',
-        borderRadius: '16px',
-        padding: '20px',
-        boxShadow: '0 1px 3px rgba(0,0,0,0.05)'
-      }
-    }, /*#__PURE__*/React.createElement("div", {
-      style: {
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'flex-start',
-        marginBottom: '12px'
-      }
-    }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
-      style: {
-        display: 'flex',
-        alignItems: 'center',
-        gap: '8px'
-      }
-    }, /*#__PURE__*/React.createElement("h4", {
-      style: {
-        fontSize: '17px',
-        fontWeight: '800',
-        color: '#0f2744'
-      }
-    }, app.service_title), /*#__PURE__*/React.createElement("span", {
-      style: {
-        fontSize: '10px',
-        fontWeight: '700',
-        padding: '2px 8px',
-        borderRadius: '999px',
-        background: '#eff6ff',
-        color: '#1e40af'
-      }
-    }, app.status)), /*#__PURE__*/React.createElement("p", {
-      style: {
-        fontSize: '12px',
-        color: '#64748b',
-        marginTop: '2px'
-      }
-    }, "Ref / Token: ", /*#__PURE__*/React.createElement("strong", null, app.application_reference_number || 'N/A'), " \u2022 Applied on: ", app.applied_on || 'Pending')), /*#__PURE__*/React.createElement("button", {
-      onClick: async () => {
-        if (confirm('Delete this tracked application?')) {
-          await api(`/applications/${app.id}`, {
-            method: 'DELETE'
-          });
-          setApplications(applications.filter(a => a.id !== app.id));
-          showToast('Application deleted');
-        }
-      },
-      style: {
-        background: 'none',
-        border: 'none',
-        color: '#ef4444',
-        cursor: 'pointer',
-        fontSize: '12px',
-        fontWeight: '600'
-      }
-    }, "Delete")), /*#__PURE__*/React.createElement("div", {
-      style: {
-        marginBottom: '16px'
-      }
-    }, /*#__PURE__*/React.createElement("div", {
-      style: {
-        display: 'flex',
-        justifyContent: 'space-between',
-        fontSize: '11px',
-        fontWeight: '700',
-        color: '#475569',
-        marginBottom: '4px'
-      }
-    }, /*#__PURE__*/React.createElement("span", null, "Document Readiness: ", readyCount, "/", docs.length, " documents ready"), /*#__PURE__*/React.createElement("span", null, progressPct, "%")), /*#__PURE__*/React.createElement("div", {
-      style: {
-        height: '8px',
-        background: '#f1f5f9',
-        borderRadius: '999px',
-        overflow: 'hidden'
-      }
-    }, /*#__PURE__*/React.createElement("div", {
-      style: {
-        width: `${progressPct}%`,
-        height: '100%',
-        background: progressPct === 100 ? '#10b981' : progressPct > 50 ? '#3b82f6' : '#f59e0b',
-        transition: 'width 0.4s ease'
-      }
-    }))), /*#__PURE__*/React.createElement("div", {
-      style: {
-        background: '#f8fafc',
-        borderRadius: '10px',
-        padding: '12px',
-        border: '1px solid #f1f5f9'
-      }
-    }, /*#__PURE__*/React.createElement("span", {
-      style: {
-        fontSize: '11px',
-        fontWeight: '700',
-        textTransform: 'uppercase',
-        color: '#64748b',
-        display: 'block',
-        marginBottom: '8px'
-      }
-    }, "Checklist Items"), /*#__PURE__*/React.createElement("div", {
-      style: {
-        display: 'flex',
-        flexDirection: 'column',
-        gap: '6px'
-      }
-    }, docs.map(d => /*#__PURE__*/React.createElement("div", {
-      key: d.id,
-      style: {
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        background: '#fff',
-        padding: '6px 10px',
-        borderRadius: '6px',
-        border: '1px solid #e2e8f0',
-        fontSize: '12px'
-      }
-    }, /*#__PURE__*/React.createElement("span", {
-      style: {
-        color: '#0f172a',
-        fontWeight: '500'
-      }
-    }, d.document_name), /*#__PURE__*/React.createElement("select", {
-      value: d.status,
-      onChange: async e => {
-        const newStat = e.target.value;
-        await api(`/applications/documents/${d.id}`, {
-          method: 'PATCH',
-          body: JSON.stringify({
-            status: newStat
-          })
-        });
-        setApplications(applications.map(a => {
-          if (a.id === app.id) {
-            return {
-              ...a,
-              documents: a.documents.map(item => item.id === d.id ? {
-                ...item,
-                status: newStat
-              } : item)
-            };
-          }
-          return a;
-        }));
-        showToast('Document status updated', 'success');
-      },
-      style: {
-        fontSize: '11px',
-        fontWeight: '600',
-        padding: '2px 6px',
-        borderRadius: '4px',
-        border: '1px solid #cbd5e1'
-      }
-    }, /*#__PURE__*/React.createElement("option", {
-      value: "NOT_READY"
-    }, "Not Ready"), /*#__PURE__*/React.createElement("option", {
-      value: "READY"
-    }, "Ready (Original)"), /*#__PURE__*/React.createElement("option", {
-      value: "UPLOADED"
-    }, "Uploaded / Scanned")))))));
-  }))), activeTab === 'reminders' && /*#__PURE__*/React.createElement("main", {
-    className: "container",
-    style: {
-      padding: '40px 20px'
+      background: '#fff',
+      border: '1px solid #e2e8f0',
+      borderRadius: '16px',
+      padding: '48px',
+      textAlign: 'center'
     }
   }, /*#__PURE__*/React.createElement("div", {
     style: {
-      maxWidth: '700px',
-      margin: '0 auto',
-      background: '#fff',
-      padding: '28px',
-      borderRadius: '16px',
-      border: '1px solid #e2e8f0',
-      boxShadow: '0 1px 3px rgba(0,0,0,0.05)'
+      fontSize: '48px',
+      marginBottom: '16px'
     }
-  }, /*#__PURE__*/React.createElement("h3", {
+  }, "\uD83D\uDCCB"), /*#__PURE__*/React.createElement("h3", {
     style: {
-      fontSize: '20px',
-      fontWeight: '800',
-      color: '#0f2744',
+      fontSize: '18px',
+      fontWeight: '700',
       marginBottom: '8px'
     }
-  }, "\uD83D\uDD14 Civic Expiry & Renewal Reminders"), /*#__PURE__*/React.createElement("p", {
+  }, t('emptyApps'))) : /*#__PURE__*/React.createElement("div", {
     style: {
-      fontSize: '13px',
-      color: '#64748b',
-      marginBottom: '24px'
-    }
-  }, "Set reminders for passport expiry, driving licence renewal, tax filing deadlines, or scholarship submission dates."), /*#__PURE__*/React.createElement("form", {
-    onSubmit: async e => {
-      e.preventDefault();
-      const f = e.target;
-      const title = f.remTitle.value;
-      const date = f.remDate.value;
-      const notes = f.remNotes.value;
-      try {
-        const res = await api('/reminders', {
-          method: 'POST',
-          body: JSON.stringify({
-            title,
-            reminder_date: date,
-            notes
-          })
-        });
-        setReminders([...reminders, res.data]);
-        showToast('Reminder added', 'success');
-        f.reset();
-      } catch (err) {
-        showToast(err.message, 'error');
-      }
-    },
-    style: {
-      display: 'flex',
-      flexDirection: 'column',
-      gap: '12px',
-      marginBottom: '24px',
-      paddingBottom: '24px',
-      borderBottom: '1px solid #e2e8f0'
-    }
-  }, /*#__PURE__*/React.createElement("input", {
-    name: "remTitle",
-    className: "form-control",
-    placeholder: "Reminder Title (e.g., Renew Driving Licence)",
-    required: true
-  }), /*#__PURE__*/React.createElement("div", {
-    style: {
-      display: 'grid',
-      gridTemplateColumns: '1fr 1fr',
-      gap: '12px'
-    }
-  }, /*#__PURE__*/React.createElement("input", {
-    type: "date",
-    name: "remDate",
-    className: "form-control",
-    required: true
-  }), /*#__PURE__*/React.createElement("input", {
-    type: "text",
-    name: "remNotes",
-    className: "form-control",
-    placeholder: "Notes (optional)"
-  })), /*#__PURE__*/React.createElement("button", {
-    type: "submit",
-    className: "btn-primary",
-    style: {
-      alignSelf: 'flex-start'
-    }
-  }, "+ Add Reminder")), /*#__PURE__*/React.createElement("div", {
-    style: {
-      display: 'flex',
-      flexDirection: 'column',
-      gap: '8px'
-    }
-  }, reminders.map(r => /*#__PURE__*/React.createElement("div", {
-    key: r.id,
-    style: {
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'space-between',
-      padding: '12px 16px',
       background: '#fff',
       border: '1px solid #e2e8f0',
-      borderRadius: '10px'
+      borderRadius: '16px',
+      overflow: 'hidden'
     }
-  }, /*#__PURE__*/React.createElement("div", {
+  }, /*#__PURE__*/React.createElement("table", {
     style: {
-      display: 'flex',
-      alignItems: 'center',
-      gap: '12px'
+      width: '100%',
+      borderCollapse: 'collapse',
+      textAlign: 'left',
+      fontSize: '14px'
     }
-  }, /*#__PURE__*/React.createElement("input", {
-    type: "checkbox",
-    checked: r.is_completed,
-    onChange: async e => {
-      const val = e.target.checked;
-      await api(`/reminders/${r.id}`, {
-        method: 'PATCH',
-        body: JSON.stringify({
-          is_completed: val
-        })
-      });
-      setReminders(reminders.map(item => item.id === r.id ? {
-        ...item,
-        is_completed: val
-      } : item));
-    },
+  }, /*#__PURE__*/React.createElement("thead", {
     style: {
-      width: '18px',
-      height: '18px',
-      cursor: 'pointer'
-    }
-  }), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("span", {
-    style: {
-      fontSize: '14px',
+      background: '#f8fafc',
+      borderBottom: '1px solid #e2e8f0',
       fontWeight: '700',
-      color: r.is_completed ? '#94a3b8' : '#0f172a',
-      textDecoration: r.is_completed ? 'line-through' : 'none'
+      color: '#475569'
     }
-  }, r.title), /*#__PURE__*/React.createElement("span", {
+  }, /*#__PURE__*/React.createElement("tr", null, /*#__PURE__*/React.createElement("th", {
     style: {
-      fontSize: '12px',
-      color: '#64748b',
-      display: 'block'
+      padding: '14px 18px'
     }
-  }, "\uD83D\uDCC5 Due: ", r.reminder_date, " \u2022 ", r.service_title || 'Civic Procedure'))), /*#__PURE__*/React.createElement("button", {
+  }, t('colService')), /*#__PURE__*/React.createElement("th", {
+    style: {
+      padding: '14px 18px'
+    }
+  }, t('colRefNum')), /*#__PURE__*/React.createElement("th", {
+    style: {
+      padding: '14px 18px'
+    }
+  }, t('colStatus')), /*#__PURE__*/React.createElement("th", {
+    style: {
+      padding: '14px 18px'
+    }
+  }, t('colDate')), /*#__PURE__*/React.createElement("th", {
+    style: {
+      padding: '14px 18px'
+    }
+  }, t('colActions')))), /*#__PURE__*/React.createElement("tbody", null, applications.map(app => /*#__PURE__*/React.createElement("tr", {
+    key: app.id,
+    style: {
+      borderBottom: '1px solid #f1f5f9'
+    }
+  }, /*#__PURE__*/React.createElement("td", {
+    style: {
+      padding: '14px 18px',
+      fontWeight: '600'
+    }
+  }, app.service_title || app.service_id), /*#__PURE__*/React.createElement("td", {
+    style: {
+      padding: '14px 18px',
+      fontFamily: 'monospace',
+      color: '#0f2744',
+      fontWeight: '700'
+    }
+  }, app.application_reference_number), /*#__PURE__*/React.createElement("td", {
+    style: {
+      padding: '14px 18px'
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    style: {
+      padding: '4px 10px',
+      borderRadius: '999px',
+      fontSize: '11px',
+      fontWeight: '700',
+      background: app.status === 'APPROVED' ? '#dcfce7' : app.status === 'UNDER_REVIEW' ? '#fef3c7' : '#eff6ff',
+      color: app.status === 'APPROVED' ? '#166534' : app.status === 'UNDER_REVIEW' ? '#92400e' : '#1e40af'
+    }
+  }, app.status)), /*#__PURE__*/React.createElement("td", {
+    style: {
+      padding: '14px 18px',
+      color: '#64748b'
+    }
+  }, app.created_at ? app.created_at.split('T')[0] : '2026-09-27'), /*#__PURE__*/React.createElement("td", {
+    style: {
+      padding: '14px 18px'
+    }
+  }, /*#__PURE__*/React.createElement("button", {
     onClick: async () => {
-      await api(`/reminders/${r.id}`, {
-        method: 'DELETE'
-      });
-      setReminders(reminders.filter(item => item.id !== r.id));
-      showToast('Reminder deleted');
+      try {
+        await api(`/applications/${app.id}`, {
+          method: 'DELETE'
+        });
+        setApplications(applications.filter(a => a.id !== app.id));
+        showToast('Application record removed');
+      } catch (e) {
+        showToast(e.message, 'error');
+      }
     },
     style: {
       background: 'none',
       border: 'none',
       color: '#ef4444',
-      fontSize: '12px',
       cursor: 'pointer',
       fontWeight: '600'
     }
-  }, "\u2715")))))), activeTab === 'admin' && currentUser?.role === 'admin' && /*#__PURE__*/React.createElement("main", {
+  }, "\u2715 Delete")))))))), activeTab === 'reminders' && /*#__PURE__*/React.createElement("div", {
     className: "container",
     style: {
-      padding: '40px 20px'
+      padding: '36px 0'
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'flex',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: '24px'
+    }
+  }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("h2", {
+    style: {
+      fontSize: '24px',
+      fontWeight: '800',
+      color: '#0f172a'
+    }
+  }, t('remindersTitle')), /*#__PURE__*/React.createElement("p", {
+    style: {
+      color: '#64748b',
+      fontSize: '14px'
+    }
+  }, t('remindersSubtitle'))), /*#__PURE__*/React.createElement("button", {
+    className: "btn-primary",
+    onClick: () => setIsNewReminderOpen(true)
+  }, t('btnNewReminder'))), reminders.length === 0 ? /*#__PURE__*/React.createElement("div", {
+    style: {
+      background: '#fff',
+      border: '1px solid #e2e8f0',
+      borderRadius: '16px',
+      padding: '48px',
+      textAlign: 'center'
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: '48px',
+      marginBottom: '16px'
+    }
+  }, "\uD83D\uDD14"), /*#__PURE__*/React.createElement("h3", {
+    style: {
+      fontSize: '18px',
+      fontWeight: '700',
+      marginBottom: '8px'
+    }
+  }, t('emptyReminders'))) : /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'grid',
+      gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))',
+      gap: '16px'
+    }
+  }, reminders.map(rem => /*#__PURE__*/React.createElement("div", {
+    key: rem.id,
+    style: {
+      background: '#fff',
+      border: '1px solid #e2e8f0',
+      borderRadius: '12px',
+      padding: '20px'
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'flex',
+      justifyContent: 'space-between',
+      alignItems: 'flex-start',
+      marginBottom: '8px'
+    }
+  }, /*#__PURE__*/React.createElement("h4", {
+    style: {
+      fontSize: '16px',
+      fontWeight: '700',
+      color: '#0f2744'
+    }
+  }, rem.title), /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: '12px',
+      color: '#ef4444',
+      fontWeight: '700',
+      background: '#fef2f2',
+      padding: '3px 8px',
+      borderRadius: '6px'
+    }
+  }, "\uD83D\uDCC5 ", rem.reminder_date)), rem.notes && /*#__PURE__*/React.createElement("p", {
+    style: {
+      fontSize: '13px',
+      color: '#64748b',
+      marginBottom: '12px'
+    }
+  }, rem.notes), /*#__PURE__*/React.createElement("button", {
+    onClick: async () => {
+      try {
+        await api(`/reminders/${rem.id}`, {
+          method: 'DELETE'
+        });
+        setReminders(reminders.filter(r => r.id !== rem.id));
+        showToast('Reminder dismissed');
+      } catch (e) {
+        showToast(e.message, 'error');
+      }
+    },
+    style: {
+      background: 'none',
+      border: 'none',
+      color: '#64748b',
+      cursor: 'pointer',
+      fontSize: '12px',
+      fontWeight: '600'
+    }
+  }, "\u2713 Dismiss"))))), activeTab === 'admin' && currentUser?.role === 'admin' && /*#__PURE__*/React.createElement("div", {
+    className: "container",
+    style: {
+      padding: '36px 0'
     }
   }, /*#__PURE__*/React.createElement("div", {
     style: {
@@ -978,605 +1153,401 @@ export function CivicApp() {
     style: {
       fontSize: '24px',
       fontWeight: '800',
-      color: '#0f2744'
+      color: '#0f172a'
     }
-  }, "Government Information Admin Console"), /*#__PURE__*/React.createElement("p", {
+  }, t('adminTitle')), /*#__PURE__*/React.createElement("p", {
     style: {
-      fontSize: '13px',
-      color: '#64748b'
+      color: '#64748b',
+      fontSize: '14px'
     }
-  }, "Manage official services, audit sources, and certify accuracy against government gazettes.")), /*#__PURE__*/React.createElement("div", {
+  }, t('adminSubtitle'))), /*#__PURE__*/React.createElement("div", {
     style: {
       display: 'grid',
-      gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+      gridTemplateColumns: 'repeat(4, 1fr)',
       gap: '16px',
       marginBottom: '32px'
     }
   }, /*#__PURE__*/React.createElement("div", {
     style: {
       background: '#fff',
-      padding: '18px',
-      borderRadius: '12px',
-      border: '1px solid #e2e8f0'
-    }
-  }, /*#__PURE__*/React.createElement("span", {
-    style: {
-      fontSize: '11px',
-      fontWeight: '700',
-      color: '#64748b',
-      textTransform: 'uppercase'
-    }
-  }, "Total Services"), /*#__PURE__*/React.createElement("h3", {
-    style: {
-      fontSize: '28px',
-      fontWeight: '800',
-      color: '#0f172a',
-      marginTop: '4px'
-    }
-  }, adminStats?.totalServices || services.length)), /*#__PURE__*/React.createElement("div", {
-    style: {
-      background: '#f0fdf4',
-      padding: '18px',
-      borderRadius: '12px',
-      border: '1px solid #a7f3d0'
-    }
-  }, /*#__PURE__*/React.createElement("span", {
-    style: {
-      fontSize: '11px',
-      fontWeight: '700',
-      color: '#065f46',
-      textTransform: 'uppercase'
-    }
-  }, "Verified Official"), /*#__PURE__*/React.createElement("h3", {
-    style: {
-      fontSize: '28px',
-      fontWeight: '800',
-      color: '#059669',
-      marginTop: '4px'
-    }
-  }, adminStats?.verifiedServices || 12)), /*#__PURE__*/React.createElement("div", {
-    style: {
-      background: '#fffbeb',
-      padding: '18px',
-      borderRadius: '12px',
-      border: '1px solid #fde68a'
-    }
-  }, /*#__PURE__*/React.createElement("span", {
-    style: {
-      fontSize: '11px',
-      fontWeight: '700',
-      color: '#92400e',
-      textTransform: 'uppercase'
-    }
-  }, "Pending Review"), /*#__PURE__*/React.createElement("h3", {
-    style: {
-      fontSize: '28px',
-      fontWeight: '800',
-      color: '#d97706',
-      marginTop: '4px'
-    }
-  }, adminStats?.pendingReview || 0)), /*#__PURE__*/React.createElement("div", {
-    style: {
-      background: '#fff',
-      padding: '18px',
-      borderRadius: '12px',
-      border: '1px solid #e2e8f0'
-    }
-  }, /*#__PURE__*/React.createElement("span", {
-    style: {
-      fontSize: '11px',
-      fontWeight: '700',
-      color: '#64748b',
-      textTransform: 'uppercase'
-    }
-  }, "Audit Records"), /*#__PURE__*/React.createElement("h3", {
-    style: {
-      fontSize: '28px',
-      fontWeight: '800',
-      color: '#475569',
-      marginTop: '4px'
-    }
-  }, adminStats?.totalAuditRecords || 2))), /*#__PURE__*/React.createElement("div", {
-    style: {
-      background: '#fff',
-      borderRadius: '16px',
       border: '1px solid #e2e8f0',
-      overflow: 'hidden'
+      borderRadius: '12px',
+      padding: '20px',
+      textAlign: 'center'
     }
   }, /*#__PURE__*/React.createElement("div", {
     style: {
-      padding: '16px 20px',
-      borderBottom: '1px solid #e2e8f0'
-    }
-  }, /*#__PURE__*/React.createElement("h4", {
-    style: {
-      fontWeight: '700',
+      fontSize: '28px',
+      fontWeight: '800',
       color: '#0f2744'
     }
-  }, "Cataloged Services & Verification Audits")), /*#__PURE__*/React.createElement("div", {
+  }, adminStats?.totalServices || 12), /*#__PURE__*/React.createElement("div", {
     style: {
-      overflowX: 'auto'
+      fontSize: '12px',
+      color: '#64748b',
+      fontWeight: '600',
+      textTransform: 'uppercase'
     }
-  }, /*#__PURE__*/React.createElement("table", {
-    className: "civic-table"
-  }, /*#__PURE__*/React.createElement("thead", null, /*#__PURE__*/React.createElement("tr", null, /*#__PURE__*/React.createElement("th", null, "Service Title"), /*#__PURE__*/React.createElement("th", null, "Category"), /*#__PURE__*/React.createElement("th", null, "Status"), /*#__PURE__*/React.createElement("th", null, "Last Checked"), /*#__PURE__*/React.createElement("th", null, "Action"))), /*#__PURE__*/React.createElement("tbody", null, services.map(s => /*#__PURE__*/React.createElement("tr", {
-    key: s.id
-  }, /*#__PURE__*/React.createElement("td", null, /*#__PURE__*/React.createElement("strong", null, s.title)), /*#__PURE__*/React.createElement("td", null, s.category), /*#__PURE__*/React.createElement("td", null, /*#__PURE__*/React.createElement("span", {
-    className: `verification-pill ${s.verification_status === 'VERIFIED' ? 'verified' : 'unverified'}`,
+  }, t('statTotalServices'))), /*#__PURE__*/React.createElement("div", {
     style: {
-      margin: 0,
-      display: 'inline-flex'
-    }
-  }, s.verification_status)), /*#__PURE__*/React.createElement("td", null, s.last_verified), /*#__PURE__*/React.createElement("td", null, /*#__PURE__*/React.createElement("button", {
-    className: "btn-secondary",
-    style: {
-      padding: '4px 8px',
-      fontSize: '11px'
-    },
-    onClick: async () => {
-      const findings = prompt('Enter administrative verification finding:');
-      if (!findings) return;
-      await api(`/admin/services/${s.id}/verify`, {
-        method: 'POST',
-        body: JSON.stringify({
-          status: 'VERIFIED',
-          findings: findings,
-          source_url: s.official_url
-        })
-      });
-      showToast('Verification record logged');
-      api('/services').then(res => setServices(res.data || []));
-    }
-  }, "Verify Source \u2197"))))))))), selectedService && /*#__PURE__*/React.createElement("div", {
-    className: "modal-backdrop",
-    onClick: e => {
-      if (e.target.className === 'modal-backdrop') setSelectedService(null);
+      background: '#fff',
+      border: '1px solid #e2e8f0',
+      borderRadius: '12px',
+      padding: '20px',
+      textAlign: 'center'
     }
   }, /*#__PURE__*/React.createElement("div", {
-    className: "modal-dialog"
+    style: {
+      fontSize: '28px',
+      fontWeight: '800',
+      color: '#10b981'
+    }
+  }, adminStats?.verifiedServices || 12), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: '12px',
+      color: '#64748b',
+      fontWeight: '600',
+      textTransform: 'uppercase'
+    }
+  }, t('statVerified'))), /*#__PURE__*/React.createElement("div", {
+    style: {
+      background: '#fff',
+      border: '1px solid #e2e8f0',
+      borderRadius: '12px',
+      padding: '20px',
+      textAlign: 'center'
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: '28px',
+      fontWeight: '800',
+      color: '#f59e0b'
+    }
+  }, adminStats?.pendingReview || 0), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: '12px',
+      color: '#64748b',
+      fontWeight: '600',
+      textTransform: 'uppercase'
+    }
+  }, t('statPending'))), /*#__PURE__*/React.createElement("div", {
+    style: {
+      background: '#fff',
+      border: '1px solid #e2e8f0',
+      borderRadius: '12px',
+      padding: '20px',
+      textAlign: 'center'
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: '28px',
+      fontWeight: '800',
+      color: '#7c3aed'
+    }
+  }, adminStats?.totalAuditRecords || 24), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: '12px',
+      color: '#64748b',
+      fontWeight: '600',
+      textTransform: 'uppercase'
+    }
+  }, t('statAudits'))))), selectedService && /*#__PURE__*/React.createElement("div", {
+    className: "modal-backdrop",
+    onClick: () => setSelectedService(null)
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "modal-dialog",
+    onClick: e => e.stopPropagation()
   }, /*#__PURE__*/React.createElement("div", {
     className: "modal-header"
-  }, /*#__PURE__*/React.createElement("h3", {
-    className: "modal-title"
-  }, selectedService.title), /*#__PURE__*/React.createElement("button", {
-    className: "close-btn",
+  }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("span", {
+    className: "service-badge-category"
+  }, selectedService.category), /*#__PURE__*/React.createElement("h2", {
+    style: {
+      fontSize: '20px',
+      fontWeight: '800',
+      color: '#0f172a',
+      marginTop: '6px'
+    }
+  }, selectedService.title)), /*#__PURE__*/React.createElement("button", {
+    className: "modal-close-btn",
     onClick: () => setSelectedService(null)
   }, "\u2715")), /*#__PURE__*/React.createElement("div", {
     className: "modal-tabs"
   }, /*#__PURE__*/React.createElement("button", {
     className: `modal-tab-btn ${modalTab === 'overview' ? 'active' : ''}`,
     onClick: () => setModalTab('overview')
-  }, "Overview"), /*#__PURE__*/React.createElement("button", {
-    className: `modal-tab-btn ${modalTab === 'documents' ? 'active' : ''}`,
-    onClick: () => setModalTab('documents')
-  }, "Required Documents (", selectedService.documents?.length || 0, ")"), /*#__PURE__*/React.createElement("button", {
+  }, t('tabOverview')), /*#__PURE__*/React.createElement("button", {
+    className: `modal-tab-btn ${modalTab === 'checklist' ? 'active' : ''}`,
+    onClick: () => setModalTab('checklist')
+  }, t('tabChecklist')), /*#__PURE__*/React.createElement("button", {
     className: `modal-tab-btn ${modalTab === 'steps' ? 'active' : ''}`,
     onClick: () => setModalTab('steps')
-  }, "Step-by-Step Procedure (", selectedService.steps?.length || 0, ")"), /*#__PURE__*/React.createElement("button", {
+  }, t('tabSteps')), /*#__PURE__*/React.createElement("button", {
     className: `modal-tab-btn ${modalTab === 'sources' ? 'active' : ''}`,
     onClick: () => setModalTab('sources')
-  }, "Official Sources (", selectedService.sources?.length || 0, ")"), /*#__PURE__*/React.createElement("button", {
-    className: `modal-tab-btn ${modalTab === 'faqs' ? 'active' : ''}`,
-    onClick: () => setModalTab('faqs')
-  }, "FAQs (", selectedService.faqs?.length || 0, ")")), /*#__PURE__*/React.createElement("div", {
+  }, t('tabSources'))), /*#__PURE__*/React.createElement("div", {
     className: "modal-body"
-  }, modalTab === 'overview' && /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+  }, modalTab === 'overview' && /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("p", {
     style: {
+      fontSize: '14px',
+      lineHeight: 1.7,
+      color: '#334155',
       marginBottom: '20px'
     }
-  }, /*#__PURE__*/React.createElement("h4", {
-    style: {
-      fontWeight: '700',
-      color: '#0f2744',
-      marginBottom: '8px'
-    }
-  }, "Official Summary"), /*#__PURE__*/React.createElement("p", {
-    style: {
-      fontSize: '14px',
-      color: '#475569',
-      lineHeight: '1.6'
-    }
-  }, selectedService.description)), /*#__PURE__*/React.createElement("div", {
-    style: {
-      display: 'grid',
-      gridTemplateColumns: '1fr 1fr',
-      gap: '16px',
-      marginBottom: '20px',
-      background: '#f8fafc',
-      padding: '16px',
-      borderRadius: '12px',
-      border: '1px solid #e2e8f0'
-    }
-  }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("span", {
-    style: {
-      fontSize: '11px',
-      textTransform: 'uppercase',
-      fontWeight: '700',
-      color: '#64748b'
-    }
-  }, "Statutory Fees"), /*#__PURE__*/React.createElement("p", {
-    style: {
-      fontSize: '14px',
-      fontWeight: '700',
-      color: '#0f172a',
-      marginTop: '2px'
-    }
-  }, selectedService.fee_structure)), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("span", {
-    style: {
-      fontSize: '11px',
-      textTransform: 'uppercase',
-      fontWeight: '700',
-      color: '#64748b'
-    }
-  }, "Processing Timeline"), /*#__PURE__*/React.createElement("p", {
-    style: {
-      fontSize: '14px',
-      fontWeight: '700',
-      color: '#0f172a',
-      marginTop: '2px'
-    }
-  }, selectedService.processing_time)), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("span", {
-    style: {
-      fontSize: '11px',
-      textTransform: 'uppercase',
-      fontWeight: '700',
-      color: '#64748b'
-    }
-  }, "Who is Eligible"), /*#__PURE__*/React.createElement("p", {
-    style: {
-      fontSize: '13px',
-      color: '#334155',
-      marginTop: '2px'
-    }
-  }, selectedService.eligibility_criteria)), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("span", {
-    style: {
-      fontSize: '11px',
-      textTransform: 'uppercase',
-      fontWeight: '700',
-      color: '#64748b'
-    }
-  }, "Application Mode & State"), /*#__PURE__*/React.createElement("p", {
-    style: {
-      fontSize: '13px',
-      fontWeight: '600',
-      color: '#334155',
-      marginTop: '2px'
-    }
-  }, selectedService.application_mode, " \u2022 ", selectedService.state))), /*#__PURE__*/React.createElement("div", {
-    style: {
-      background: '#eff6ff',
-      border: '1px solid #bfdbfe',
-      borderRadius: '12px',
-      padding: '16px',
-      marginBottom: '24px'
-    }
-  }, /*#__PURE__*/React.createElement("div", {
-    style: {
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'space-between',
-      flexWrap: 'wrap',
-      gap: '10px'
-    }
-  }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("span", {
-    style: {
-      fontSize: '11px',
-      fontWeight: '700',
-      color: '#1e40af',
-      textTransform: 'uppercase'
-    }
-  }, "Official Verified Government Portal"), /*#__PURE__*/React.createElement("p", {
-    style: {
-      fontSize: '14px',
-      fontWeight: '700',
-      color: '#1e3a8a'
-    }
-  }, selectedService.official_url)), /*#__PURE__*/React.createElement("a", {
-    href: selectedService.official_url,
-    target: "_blank",
-    rel: "noopener noreferrer",
-    className: "btn-primary",
-    style: {
-      background: '#1e40af',
-      borderColor: '#1d4ed8'
-    }
-  }, "Visit Official Portal \u2197"))), /*#__PURE__*/React.createElement("div", {
-    style: {
-      display: 'flex',
-      gap: '10px'
-    }
-  }, /*#__PURE__*/React.createElement("button", {
-    className: "btn-primary",
-    onClick: async () => {
-      await api('/applications', {
-        method: 'POST',
-        body: JSON.stringify({
-          service_id: selectedService.id,
-          service_title: selectedService.title
-        })
-      });
-      showToast(`Added ${selectedService.title} to tracker!`, 'success');
-      setSelectedService(null);
-      setActiveTab('applications');
-    }
-  }, "\u2795 Track This Application"), /*#__PURE__*/React.createElement("button", {
-    className: "btn-gold",
-    onClick: () => {
-      setIsAiOpen(true);
-      handleSendMessage(`Explain documents and steps for ${selectedService.title}`, selectedService.id);
-    }
-  }, "\u2728 Ask AI Assistant"))), modalTab === 'documents' && /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("p", {
-    style: {
-      fontSize: '13px',
-      color: '#64748b',
-      marginBottom: '16px'
-    }
-  }, "Prepare these verified mandatory documents before initiating your application. Click to mark readiness:"), (selectedService.documents || []).map((d, i) => /*#__PURE__*/React.createElement("div", {
-    key: d.id,
-    className: "doc-item-row"
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "doc-check-box",
-    onClick: e => e.currentTarget.classList.toggle('ready')
-  }, "\u2713"), /*#__PURE__*/React.createElement("div", {
-    className: "doc-info-col"
-  }, /*#__PURE__*/React.createElement("h4", null, i + 1, ". ", d.document_name), /*#__PURE__*/React.createElement("p", null, d.purpose), /*#__PURE__*/React.createElement("div", {
-    className: "doc-meta-tags"
-  }, /*#__PURE__*/React.createElement("span", {
-    className: "doc-badge"
-  }, "Format: ", d.accepted_formats || 'PDF/Scan'), /*#__PURE__*/React.createElement("span", {
-    className: "doc-badge"
-  }, d.is_original_required ? '⚠️ Original Required' : 'Self-attested Copy'), d.notes && /*#__PURE__*/React.createElement("span", {
-    className: "doc-badge",
-    style: {
-      background: '#fef3c7',
-      color: '#92400e'
-    }
-  }, d.notes)))))), modalTab === 'steps' && /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("p", {
-    style: {
-      fontSize: '13px',
-      color: '#64748b',
-      marginBottom: '16px'
-    }
-  }, "Follow these sequential stages on the authorized government portal:"), (selectedService.steps || []).map(step => /*#__PURE__*/React.createElement("div", {
-    key: step.id,
-    className: "step-item-card"
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "step-number-bubble"
-  }, step.step_number), /*#__PURE__*/React.createElement("div", {
-    className: "step-content"
-  }, /*#__PURE__*/React.createElement("h4", null, step.title), /*#__PURE__*/React.createElement("p", null, step.description), /*#__PURE__*/React.createElement("div", {
-    style: {
-      display: 'flex',
-      gap: '8px',
-      marginTop: '6px',
-      fontSize: '11px',
-      color: '#64748b'
-    }
-  }, /*#__PURE__*/React.createElement("span", null, "\u23F1\uFE0F Est. Time: ", step.estimated_time || '1 day'), /*#__PURE__*/React.createElement("span", null, "\u2022"), /*#__PURE__*/React.createElement("span", null, step.is_online_step ? '🌐 Online Submission' : '🏛️ Physical Counter Visit')), step.tips && /*#__PURE__*/React.createElement("div", {
-    className: "step-tip"
-  }, "\uD83D\uDCA1 ", /*#__PURE__*/React.createElement("strong", null, "Citizen Tip:"), " ", step.tips))))), modalTab === 'sources' && /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("p", {
-    style: {
-      fontSize: '13px',
-      color: '#64748b',
-      marginBottom: '16px'
-    }
-  }, "Every procedure on CivicGuide AI is grounded directly in gazetted government portals and statutory rules:"), (selectedService.sources || []).map(src => /*#__PURE__*/React.createElement("div", {
-    key: src.id,
+  }, selectedService.description), /*#__PURE__*/React.createElement("div", {
     style: {
       background: '#f8fafc',
       border: '1px solid #e2e8f0',
       borderRadius: '12px',
       padding: '16px',
-      marginBottom: '12px'
+      marginBottom: '20px'
     }
   }, /*#__PURE__*/React.createElement("div", {
     style: {
-      display: 'flex',
-      justifyContent: 'space-between',
-      alignItems: 'flex-start',
+      fontWeight: '700',
+      color: '#0f2744',
       marginBottom: '6px'
     }
-  }, /*#__PURE__*/React.createElement("h4", {
+  }, t('lblEligibility')), /*#__PURE__*/React.createElement("p", {
+    style: {
+      fontSize: '13px',
+      color: '#475569'
+    }
+  }, selectedService.eligibility_criteria || 'Indian Citizens meeting age and residential jurisdiction requirements.')), /*#__PURE__*/React.createElement("div", {
+    style: {
+      background: '#eff6ff',
+      border: '1px solid #bfdbfe',
+      borderRadius: '12px',
+      padding: '16px'
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontWeight: '700',
+      color: '#1e40af',
+      marginBottom: '6px'
+    }
+  }, t('lblGovFee')), /*#__PURE__*/React.createElement("p", {
     style: {
       fontSize: '14px',
       fontWeight: '700',
       color: '#0f2744'
     }
-  }, src.authority_name), /*#__PURE__*/React.createElement("span", {
+  }, selectedService.fee_structure))), modalTab === 'checklist' && /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("h4", {
     style: {
-      fontSize: '10px',
+      fontSize: '16px',
       fontWeight: '700',
-      background: '#ecfdf5',
-      color: '#065f46',
-      padding: '2px 8px',
-      borderRadius: '999px'
+      marginBottom: '4px'
     }
-  }, src.verification_badge || 'OFFICIAL_VERIFIED')), /*#__PURE__*/React.createElement("p", {
-    style: {
-      fontSize: '12px',
-      color: '#475569',
-      marginBottom: '8px'
-    }
-  }, src.citation_text), /*#__PURE__*/React.createElement("div", {
-    style: {
-      fontSize: '11px',
-      color: '#64748b',
-      display: 'flex',
-      justifyContent: 'space-between'
-    }
-  }, /*#__PURE__*/React.createElement("a", {
-    href: src.source_url,
-    target: "_blank",
-    rel: "noopener noreferrer",
-    style: {
-      color: '#2563eb',
-      fontWeight: '600',
-      textDecoration: 'none'
-    }
-  }, "Verify at: ", src.source_url, " \u2197"), /*#__PURE__*/React.createElement("span", null, "Checked: ", src.last_checked_date))))), modalTab === 'faqs' && /*#__PURE__*/React.createElement("div", null, (selectedService.faqs || []).map(f => /*#__PURE__*/React.createElement("div", {
-    key: f.id,
-    style: {
-      marginBottom: '16px',
-      background: '#ffffff',
-      border: '1px solid #e2e8f0',
-      borderRadius: '10px',
-      padding: '14px'
-    }
-  }, /*#__PURE__*/React.createElement("h4", {
-    style: {
-      fontSize: '14px',
-      fontWeight: '700',
-      color: '#0f172a',
-      marginBottom: '6px'
-    }
-  }, "Q: ", f.question), /*#__PURE__*/React.createElement("p", {
+  }, t('docsChecklistTitle')), /*#__PURE__*/React.createElement("p", {
     style: {
       fontSize: '13px',
-      color: '#475569',
-      lineHeight: '1.5'
-    }
-  }, f.answer), f.official_reference && /*#__PURE__*/React.createElement("span", {
-    style: {
-      fontSize: '10px',
       color: '#64748b',
-      display: 'block',
-      marginTop: '6px'
+      marginBottom: '16px'
     }
-  }, "Ref: ", f.official_reference))))))), /*#__PURE__*/React.createElement("div", {
-    className: `chat-drawer ${isAiOpen ? 'open' : ''}`
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "modal-header"
-  }, /*#__PURE__*/React.createElement("div", {
+  }, t('checklistSubtitle')), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'flex',
+      flexDirection: 'column',
+      gap: '10px'
+    }
+  }, (selectedService.required_documents || [{
+    document_name: 'Proof of Identity (Aadhaar / Voter ID / PAN)',
+    mandatory: true
+  }, {
+    document_name: 'Proof of Address (Electricity bill / Passport / Bank Passbook)',
+    mandatory: true
+  }, {
+    document_name: 'Proof of Date of Birth (Birth Certificate / SSC Certificate)',
+    mandatory: true
+  }, {
+    document_name: 'Recent Passport Size Color Photographs (35mm x 45mm)',
+    mandatory: true
+  }]).map((doc, idx) => /*#__PURE__*/React.createElement("div", {
+    key: idx,
     style: {
       display: 'flex',
       alignItems: 'center',
-      gap: '8px'
+      justifyContent: 'space-between',
+      padding: '12px',
+      background: '#f8fafc',
+      border: '1px solid #e2e8f0',
+      borderRadius: '8px'
     }
-  }, /*#__PURE__*/React.createElement("span", {
+  }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
     style: {
-      fontSize: '18px'
+      fontSize: '13px',
+      fontWeight: '700',
+      color: '#0f172a'
     }
-  }, "\u2728"), /*#__PURE__*/React.createElement("h3", {
-    className: "modal-title",
+  }, doc.document_name), doc.mandatory && /*#__PURE__*/React.createElement("span", {
     style: {
-      fontSize: '16px'
+      fontSize: '10px',
+      color: '#ef4444',
+      fontWeight: '700'
     }
-  }, "CivicGuide AI Assistant")), /*#__PURE__*/React.createElement("button", {
-    className: "close-btn",
-    onClick: () => setIsAiOpen(false)
-  }, "\u2715")), /*#__PURE__*/React.createElement("div", {
-    className: "chat-prompt-chips"
-  }, ['What documents are needed for passport?', 'How much is driving licence fee?', 'Explain Non-ECR vs ECR', 'What is MeeSeva?'].map(prompt => /*#__PURE__*/React.createElement("button", {
-    key: prompt,
-    className: "prompt-chip-btn",
-    onClick: () => handleSendMessage(prompt)
-  }, prompt))), /*#__PURE__*/React.createElement("div", {
-    className: "chat-messages"
-  }, chatMessages.map((m, idx) => /*#__PURE__*/React.createElement("div", {
+  }, "* MANDATORY")), /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: '12px',
+      fontWeight: '700',
+      color: '#10b981',
+      background: '#ecfdf5',
+      padding: '4px 8px',
+      borderRadius: '6px'
+    }
+  }, "\u2713 ", t('statusReady')))))), modalTab === 'steps' && /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("h4", {
+    style: {
+      fontSize: '16px',
+      fontWeight: '700',
+      marginBottom: '4px'
+    }
+  }, t('timelineStepsTitle')), /*#__PURE__*/React.createElement("p", {
+    style: {
+      fontSize: '13px',
+      color: '#64748b',
+      marginBottom: '16px'
+    }
+  }, t('timelineSubtitle')), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'flex',
+      flexDirection: 'column',
+      gap: '12px'
+    }
+  }, (selectedService.application_steps || [{
+    step_number: 1,
+    title: 'Portal Registration & Online Form Filling',
+    description: 'Visit verified government portal, register using email/mobile and fill application details.'
+  }, {
+    step_number: 2,
+    title: 'Document Upload & Scrutiny',
+    description: 'Attach scanned clear copies of mandatory identity, address, and date of birth proofs.'
+  }, {
+    step_number: 3,
+    title: 'Statutory Fee Payment & Appointment Slot',
+    description: 'Pay the exact statutory government fee via SBI ePay/UPI and schedule verification slot.'
+  }, {
+    step_number: 4,
+    title: 'In-Person Biometric Verification & Delivery',
+    description: 'Attend appointment at center. Certificate or document dispatched via India Speed Post.'
+  }]).map((step, idx) => /*#__PURE__*/React.createElement("div", {
     key: idx,
-    className: `msg-bubble ${m.role === 'user' ? 'user' : 'assistant'}`
+    style: {
+      display: 'flex',
+      gap: '14px',
+      alignItems: 'flex-start'
+    }
   }, /*#__PURE__*/React.createElement("div", {
     style: {
-      whiteSpace: 'pre-wrap'
+      width: '28px',
+      height: '28px',
+      borderRadius: '50%',
+      background: '#0f2744',
+      color: '#fff',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      fontWeight: '700',
+      fontSize: '12px',
+      flexShrink: 0
     }
-  }, m.text), m.sources && m.sources.length > 0 && /*#__PURE__*/React.createElement("div", {
+  }, step.step_number || idx + 1), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
     style: {
-      marginTop: '10px',
-      paddingTop: '8px',
-      borderTop: '1px solid #cbd5e1',
-      fontSize: '11px'
+      fontSize: '14px',
+      fontWeight: '700',
+      color: '#0f172a'
     }
-  }, /*#__PURE__*/React.createElement("strong", null, "Verified Sources:"), m.sources.map((src, i) => /*#__PURE__*/React.createElement("div", {
-    key: i,
+  }, step.title), /*#__PURE__*/React.createElement("div", {
     style: {
+      fontSize: '13px',
+      color: '#64748b',
       marginTop: '2px'
     }
-  }, /*#__PURE__*/React.createElement("a", {
-    href: src.url,
+  }, step.description)))))), modalTab === 'sources' && /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("h4", {
+    style: {
+      fontSize: '16px',
+      fontWeight: '700',
+      marginBottom: '4px'
+    }
+  }, t('sourcesTitle')), /*#__PURE__*/React.createElement("p", {
+    style: {
+      fontSize: '13px',
+      color: '#64748b',
+      marginBottom: '16px'
+    }
+  }, t('sourcesSubtitle')), /*#__PURE__*/React.createElement("div", {
+    style: {
+      background: '#f8fafc',
+      border: '1px solid #e2e8f0',
+      borderRadius: '12px',
+      padding: '16px',
+      marginBottom: '16px'
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: '12px',
+      fontWeight: '700',
+      color: '#64748b',
+      textTransform: 'uppercase',
+      marginBottom: '4px'
+    }
+  }, "Official Portal Link"), /*#__PURE__*/React.createElement("a", {
+    href: selectedService.official_url,
     target: "_blank",
     rel: "noopener noreferrer",
     style: {
-      color: '#0284c7',
+      fontSize: '14px',
+      fontWeight: '700',
+      color: '#2563eb',
+      textDecoration: 'none',
+      wordBreak: 'break-all'
+    }
+  }, selectedService.official_url, " \u2197")), /*#__PURE__*/React.createElement("a", {
+    href: selectedService.official_url,
+    target: "_blank",
+    rel: "noopener noreferrer",
+    className: "btn-primary",
+    style: {
+      display: 'inline-flex',
+      width: '100%',
+      justifyContent: 'center',
       textDecoration: 'none'
     }
-  }, "\u2022 ", src.title, " (", src.lastVerified, ")")))))), isChatLoading && /*#__PURE__*/React.createElement("div", {
-    className: "msg-bubble assistant",
-    style: {
-      color: '#64748b'
-    }
-  }, /*#__PURE__*/React.createElement("span", null, "Analyzing verified government gazettes and rules..."))), /*#__PURE__*/React.createElement("div", {
-    className: "chat-input-area"
-  }, /*#__PURE__*/React.createElement("input", {
-    type: "text",
-    className: "form-control",
-    placeholder: "Ask a government service question...",
-    value: chatInput,
-    onChange: e => setChatInput(e.target.value),
-    onKeyDown: e => {
-      if (e.key === 'Enter') handleSendMessage();
-    }
-  }), /*#__PURE__*/React.createElement("button", {
-    className: "btn-primary",
-    onClick: () => handleSendMessage(),
-    style: {
-      padding: '10px 18px'
-    }
-  }, "Send"))), isWizardOpen && /*#__PURE__*/React.createElement("div", {
+  }, /*#__PURE__*/React.createElement("span", null, "\uD83C\uDF10"), " ", t('btnVisitPortal')))), /*#__PURE__*/React.createElement("div", {
+    className: "modal-footer"
+  }, /*#__PURE__*/React.createElement("button", {
+    className: "btn-secondary",
+    onClick: () => setSelectedService(null)
+  }, t('btnClose'))))), isWizardOpen && /*#__PURE__*/React.createElement("div", {
     className: "modal-backdrop",
-    onClick: e => {
-      if (e.target.className === 'modal-backdrop') setIsWizardOpen(false);
-    }
+    onClick: () => setIsWizardOpen(false)
   }, /*#__PURE__*/React.createElement("div", {
-    className: "modal-dialog"
+    className: "modal-dialog",
+    onClick: e => e.stopPropagation()
   }, /*#__PURE__*/React.createElement("div", {
     className: "modal-header"
-  }, /*#__PURE__*/React.createElement("h3", {
-    className: "modal-title"
-  }, "\u2728 Personalized Checklist Wizard"), /*#__PURE__*/React.createElement("button", {
-    className: "close-btn",
+  }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("h3", {
+    style: {
+      fontSize: '18px',
+      fontWeight: '800',
+      color: '#0f172a'
+    }
+  }, t('wizardTitle')), /*#__PURE__*/React.createElement("p", {
+    style: {
+      fontSize: '12px',
+      color: '#64748b'
+    }
+  }, t('wizardSubtitle'))), /*#__PURE__*/React.createElement("button", {
+    className: "modal-close-btn",
     onClick: () => setIsWizardOpen(false)
   }, "\u2715")), /*#__PURE__*/React.createElement("div", {
     className: "modal-body"
-  }, /*#__PURE__*/React.createElement("form", {
-    onSubmit: async e => {
-      e.preventDefault();
-      const f = e.target;
-      const serviceId = f.wizService.value;
-      const stateVal = f.wizState.value;
-      const ageGroup = f.wizAge.value;
-      const occupation = f.wizOcc.value;
-      try {
-        const res = await api('/ai/guidance', {
-          method: 'POST',
-          body: JSON.stringify({
-            serviceId,
-            state: stateVal,
-            ageGroup,
-            occupation
-          })
-        });
-        alert(`Personalized checklist generated with ${res.personalizedChecklist.length} steps!`);
-      } catch (err) {
-        showToast(err.message, 'error');
-      }
-    }
   }, /*#__PURE__*/React.createElement("div", {
-    className: "form-group"
-  }, /*#__PURE__*/React.createElement("label", {
-    className: "form-label"
-  }, "Select Government Service"), /*#__PURE__*/React.createElement("select", {
-    name: "wizService",
-    className: "form-control",
-    required: true
-  }, services.map(s => /*#__PURE__*/React.createElement("option", {
-    key: s.id,
-    value: s.id
-  }, s.title)))), /*#__PURE__*/React.createElement("div", {
-    className: "form-group"
-  }, /*#__PURE__*/React.createElement("label", {
-    className: "form-label"
-  }, "Your State / UT"), /*#__PURE__*/React.createElement("select", {
-    name: "wizState",
+    className: "form-group",
+    style: {
+      marginBottom: '14px'
+    }
+  }, /*#__PURE__*/React.createElement("label", null, t('wizStateLbl')), /*#__PURE__*/React.createElement("select", {
+    value: wizState,
+    onChange: e => setWizState(e.target.value),
     className: "form-control"
   }, /*#__PURE__*/React.createElement("option", {
     value: "Telangana"
@@ -1589,277 +1560,351 @@ export function CivicApp() {
   }, "Karnataka"), /*#__PURE__*/React.createElement("option", {
     value: "Delhi"
   }, "Delhi"))), /*#__PURE__*/React.createElement("div", {
+    className: "form-group",
     style: {
-      display: 'grid',
-      gridTemplateColumns: '1fr 1fr',
-      gap: '12px'
+      marginBottom: '14px'
     }
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "form-group"
-  }, /*#__PURE__*/React.createElement("label", {
-    className: "form-label"
-  }, "Age Category"), /*#__PURE__*/React.createElement("select", {
-    name: "wizAge",
+  }, /*#__PURE__*/React.createElement("label", null, t('wizAgeLbl')), /*#__PURE__*/React.createElement("select", {
+    value: wizAge,
+    onChange: e => setWizAge(e.target.value),
     className: "form-control"
   }, /*#__PURE__*/React.createElement("option", {
     value: "ADULT_18_59"
-  }, "Adult (18 - 59 yrs)"), /*#__PURE__*/React.createElement("option", {
+  }, t('wizAgeAdult')), /*#__PURE__*/React.createElement("option", {
     value: "MINOR_UNDER_18"
-  }, "Minor (Under 18 yrs)"), /*#__PURE__*/React.createElement("option", {
+  }, t('wizAgeMinor')), /*#__PURE__*/React.createElement("option", {
     value: "SENIOR_60_PLUS"
-  }, "Senior Citizen (60+ yrs)"))), /*#__PURE__*/React.createElement("div", {
-    className: "form-group"
-  }, /*#__PURE__*/React.createElement("label", {
-    className: "form-label"
-  }, "Occupation / Group"), /*#__PURE__*/React.createElement("select", {
-    name: "wizOcc",
+  }, t('wizAgeSenior')))), /*#__PURE__*/React.createElement("div", {
+    className: "form-group",
+    style: {
+      marginBottom: '14px'
+    }
+  }, /*#__PURE__*/React.createElement("label", null, t('wizOccLbl')), /*#__PURE__*/React.createElement("select", {
+    value: wizOcc,
+    onChange: e => setWizOcc(e.target.value),
     className: "form-control"
   }, /*#__PURE__*/React.createElement("option", {
     value: "CITIZEN"
-  }, "Salaried / General Citizen"), /*#__PURE__*/React.createElement("option", {
+  }, t('wizOccCitizen')), /*#__PURE__*/React.createElement("option", {
     value: "STUDENT"
-  }, "Student"), /*#__PURE__*/React.createElement("option", {
+  }, t('wizOccStudent')), /*#__PURE__*/React.createElement("option", {
     value: "BUSINESS"
-  }, "Business / MSME Owner"), /*#__PURE__*/React.createElement("option", {
-    value: "FARMER"
-  }, "Farmer / Agriculture")))), /*#__PURE__*/React.createElement("button", {
-    type: "submit",
+  }, t('wizOccBusiness')), /*#__PURE__*/React.createElement("option", {
+    value: "GOVERNMENT"
+  }, t('wizOccGovt')))), /*#__PURE__*/React.createElement("div", {
+    className: "form-group",
+    style: {
+      marginBottom: '20px'
+    }
+  }, /*#__PURE__*/React.createElement("label", null, t('wizServiceLbl')), /*#__PURE__*/React.createElement("select", {
+    value: wizService,
+    onChange: e => setWizService(e.target.value),
+    className: "form-control"
+  }, services.map(s => /*#__PURE__*/React.createElement("option", {
+    key: s.id,
+    value: s.id
+  }, s.title)))), /*#__PURE__*/React.createElement("button", {
     className: "btn-primary",
     style: {
-      width: '100%',
-      padding: '12px',
-      marginTop: '8px'
+      width: '100%'
+    },
+    onClick: handleGenerateGuidance,
+    disabled: isWizLoading
+  }, isWizLoading ? 'Analyzing Government Gazette Rules...' : t('btnGenerateGuidance')), wizResult && /*#__PURE__*/React.createElement("div", {
+    style: {
+      marginTop: '24px',
+      background: '#f8fafc',
+      border: '1px solid #e2e8f0',
+      borderRadius: '12px',
+      padding: '16px'
     }
-  }, "Generate Tailored Checklist"))))), isAuthOpen && /*#__PURE__*/React.createElement("div", {
+  }, /*#__PURE__*/React.createElement("h4", {
+    style: {
+      fontSize: '15px',
+      fontWeight: '700',
+      color: '#0f2744',
+      marginBottom: '8px'
+    }
+  }, t('wizardResultTitle')), /*#__PURE__*/React.createElement("ul", {
+    style: {
+      paddingLeft: '20px',
+      fontSize: '13px',
+      lineHeight: 1.7,
+      color: '#334155'
+    }
+  }, (wizResult.personalizedChecklist || []).map((item, i) => /*#__PURE__*/React.createElement("li", {
+    key: i
+  }, item))))))), isNewAppOpen && /*#__PURE__*/React.createElement("div", {
     className: "modal-backdrop",
-    onClick: e => {
-      if (e.target.className === 'modal-backdrop') setIsAuthOpen(false);
-    }
+    onClick: () => setIsNewAppOpen(false)
   }, /*#__PURE__*/React.createElement("div", {
     className: "modal-dialog",
-    style: {
-      maxWidth: '440px'
-    }
+    onClick: e => e.stopPropagation()
   }, /*#__PURE__*/React.createElement("div", {
     className: "modal-header"
   }, /*#__PURE__*/React.createElement("h3", {
-    className: "modal-title"
-  }, "Citizen Account"), /*#__PURE__*/React.createElement("button", {
-    className: "close-btn",
-    onClick: () => setIsAuthOpen(false)
-  }, "\u2715")), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: '18px',
+      fontWeight: '800',
+      color: '#0f172a'
+    }
+  }, t('modalNewAppTitle')), /*#__PURE__*/React.createElement("button", {
+    className: "modal-close-btn",
+    onClick: () => setIsNewAppOpen(false)
+  }, "\u2715")), /*#__PURE__*/React.createElement("form", {
+    onSubmit: handleCreateApplication,
     className: "modal-body"
   }, /*#__PURE__*/React.createElement("div", {
+    className: "form-group",
     style: {
-      background: '#eff6ff',
-      padding: '12px',
-      borderRadius: '10px',
-      marginBottom: '18px',
-      border: '1px solid #bfdbfe'
+      marginBottom: '14px'
     }
-  }, /*#__PURE__*/React.createElement("span", {
-    style: {
-      fontSize: '11px',
-      fontWeight: '700',
-      color: '#1e40af',
-      textTransform: 'uppercase',
-      display: 'block',
-      marginBottom: '8px'
-    }
-  }, "\u26A1 Quick Demo Logins"), /*#__PURE__*/React.createElement("div", {
-    style: {
-      display: 'flex',
-      gap: '8px'
-    }
-  }, /*#__PURE__*/React.createElement("button", {
-    type: "button",
-    className: "btn-secondary",
-    style: {
-      fontSize: '11px',
-      padding: '6px 10px',
-      flex: 1
-    },
-    onClick: async () => {
-      const res = await api('/auth/login', {
-        method: 'POST',
-        body: JSON.stringify({
-          email: 'citizen@example.com',
-          password: 'Password@123'
-        })
-      });
-      localStorage.setItem('civic_auth_token', res.data.token);
-      localStorage.setItem('civic_user', JSON.stringify(res.data.user));
-      setCurrentUser(res.data.user);
-      showToast('Logged in as Citizen Shiva Sai!', 'success');
-      setIsAuthOpen(false);
-    }
-  }, "\uD83D\uDC64 Demo Citizen"), /*#__PURE__*/React.createElement("button", {
-    type: "button",
-    className: "btn-secondary",
-    style: {
-      fontSize: '11px',
-      padding: '6px 10px',
-      flex: 1
-    },
-    onClick: async () => {
-      const res = await api('/auth/login', {
-        method: 'POST',
-        body: JSON.stringify({
-          email: 'admin@civicguide.gov.in',
-          password: 'Password@123'
-        })
-      });
-      localStorage.setItem('civic_auth_token', res.data.token);
-      localStorage.setItem('civic_user', JSON.stringify(res.data.user));
-      setCurrentUser(res.data.user);
-      showToast('Logged in as Official Civic Administrator!', 'success');
-      setIsAuthOpen(false);
-    }
-  }, "\uD83D\uDEE1\uFE0F Demo Admin"))), /*#__PURE__*/React.createElement("form", {
-    onSubmit: async e => {
-      e.preventDefault();
-      const f = e.target;
-      try {
-        const res = await api('/auth/login', {
-          method: 'POST',
-          body: JSON.stringify({
-            email: f.loginEmail.value,
-            password: f.loginPassword.value
-          })
-        });
-        localStorage.setItem('civic_auth_token', res.data.token);
-        localStorage.setItem('civic_user', JSON.stringify(res.data.user));
-        setCurrentUser(res.data.user);
-        showToast('Signed in successfully!', 'success');
-        setIsAuthOpen(false);
-      } catch (err) {
-        showToast(err.message, 'error');
-      }
-    }
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "form-group"
-  }, /*#__PURE__*/React.createElement("label", {
-    className: "form-label"
-  }, "Email Address"), /*#__PURE__*/React.createElement("input", {
-    type: "email",
-    name: "loginEmail",
+  }, /*#__PURE__*/React.createElement("label", null, t('lblSelectService')), /*#__PURE__*/React.createElement("select", {
+    value: newAppServiceId,
+    onChange: e => setNewAppServiceId(e.target.value),
     className: "form-control",
-    placeholder: "citizen@example.com",
+    required: true
+  }, /*#__PURE__*/React.createElement("option", {
+    value: ""
+  }, "-- Choose Government Service --"), services.map(s => /*#__PURE__*/React.createElement("option", {
+    key: s.id,
+    value: s.id
+  }, s.title)))), /*#__PURE__*/React.createElement("div", {
+    className: "form-group",
+    style: {
+      marginBottom: '14px'
+    }
+  }, /*#__PURE__*/React.createElement("label", null, t('lblRefNumber')), /*#__PURE__*/React.createElement("input", {
+    type: "text",
+    className: "form-control",
+    placeholder: "e.g. ARN-2026-981245",
+    value: newAppRef,
+    onChange: e => setNewAppRef(e.target.value),
     required: true
   })), /*#__PURE__*/React.createElement("div", {
-    className: "form-group"
-  }, /*#__PURE__*/React.createElement("label", {
-    className: "form-label"
-  }, "Password"), /*#__PURE__*/React.createElement("input", {
-    type: "password",
-    name: "loginPassword",
+    className: "form-group",
+    style: {
+      marginBottom: '20px'
+    }
+  }, /*#__PURE__*/React.createElement("label", null, t('lblInitialStatus')), /*#__PURE__*/React.createElement("select", {
+    value: newAppStatus,
+    onChange: e => setNewAppStatus(e.target.value),
+    className: "form-control"
+  }, /*#__PURE__*/React.createElement("option", {
+    value: "SUBMITTED"
+  }, t('statusSubmitted')), /*#__PURE__*/React.createElement("option", {
+    value: "UNDER_REVIEW"
+  }, t('statusUnderReview')), /*#__PURE__*/React.createElement("option", {
+    value: "APPROVED"
+  }, t('statusApproved')), /*#__PURE__*/React.createElement("option", {
+    value: "ACTION_REQUIRED"
+  }, t('statusActionRequired')))), /*#__PURE__*/React.createElement("button", {
+    type: "submit",
+    className: "btn-primary",
+    style: {
+      width: '100%'
+    }
+  }, t('btnSaveApp'))))), isNewReminderOpen && /*#__PURE__*/React.createElement("div", {
+    className: "modal-backdrop",
+    onClick: () => setIsNewReminderOpen(false)
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "modal-dialog",
+    onClick: e => e.stopPropagation()
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "modal-header"
+  }, /*#__PURE__*/React.createElement("h3", {
+    style: {
+      fontSize: '18px',
+      fontWeight: '800',
+      color: '#0f172a'
+    }
+  }, t('modalNewReminderTitle')), /*#__PURE__*/React.createElement("button", {
+    className: "modal-close-btn",
+    onClick: () => setIsNewReminderOpen(false)
+  }, "\u2715")), /*#__PURE__*/React.createElement("form", {
+    onSubmit: handleCreateReminder,
+    className: "modal-body"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "form-group",
+    style: {
+      marginBottom: '14px'
+    }
+  }, /*#__PURE__*/React.createElement("label", null, t('lblReminderTitle')), /*#__PURE__*/React.createElement("input", {
+    type: "text",
     className: "form-control",
-    placeholder: "\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022",
+    placeholder: "e.g. Renew Driving Licence",
+    value: newRemTitle,
+    onChange: e => setNewRemTitle(e.target.value),
     required: true
+  })), /*#__PURE__*/React.createElement("div", {
+    className: "form-group",
+    style: {
+      marginBottom: '14px'
+    }
+  }, /*#__PURE__*/React.createElement("label", null, t('lblDueDate')), /*#__PURE__*/React.createElement("input", {
+    type: "date",
+    className: "form-control",
+    value: newRemDate,
+    onChange: e => setNewRemDate(e.target.value),
+    required: true
+  })), /*#__PURE__*/React.createElement("div", {
+    className: "form-group",
+    style: {
+      marginBottom: '20px'
+    }
+  }, /*#__PURE__*/React.createElement("label", null, t('lblNotes')), /*#__PURE__*/React.createElement("textarea", {
+    className: "form-control",
+    rows: "3",
+    placeholder: "Documents needed or reference notes...",
+    value: newRemNotes,
+    onChange: e => setNewRemNotes(e.target.value)
   })), /*#__PURE__*/React.createElement("button", {
     type: "submit",
     className: "btn-primary",
     style: {
-      width: '100%',
-      padding: '11px'
+      width: '100%'
     }
-  }, "Sign In"))))), isNewAppOpen && /*#__PURE__*/React.createElement("div", {
+  }, t('btnSaveReminder'))))), isAiOpen && /*#__PURE__*/React.createElement("div", {
     className: "modal-backdrop",
-    onClick: e => {
-      if (e.target.className === 'modal-backdrop') setIsNewAppOpen(false);
-    }
+    onClick: () => setIsAiOpen(false)
   }, /*#__PURE__*/React.createElement("div", {
-    className: "modal-dialog",
     style: {
-      maxWidth: '520px'
-    }
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "modal-header"
-  }, /*#__PURE__*/React.createElement("h3", {
-    className: "modal-title"
-  }, "+ Track New Application"), /*#__PURE__*/React.createElement("button", {
-    className: "close-btn",
-    onClick: () => setIsNewAppOpen(false)
-  }, "\u2715")), /*#__PURE__*/React.createElement("div", {
-    className: "modal-body"
-  }, /*#__PURE__*/React.createElement("form", {
-    onSubmit: async e => {
-      e.preventDefault();
-      const f = e.target;
-      const serviceId = f.appService.value;
-      const srv = services.find(s => s.id === serviceId);
-      try {
-        const res = await api('/applications', {
-          method: 'POST',
-          body: JSON.stringify({
-            service_id: serviceId,
-            service_title: srv ? srv.title : 'Government Service',
-            application_reference_number: f.appRef.value,
-            applied_on: f.appDate.value,
-            status: f.appStatus.value
-          })
-        });
-        setApplications([res.data, ...applications]);
-        showToast('Application added to tracker', 'success');
-        setIsNewAppOpen(false);
-      } catch (err) {
-        showToast(err.message, 'error');
-      }
-    }
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "form-group"
-  }, /*#__PURE__*/React.createElement("label", {
-    className: "form-label"
-  }, "Select Service"), /*#__PURE__*/React.createElement("select", {
-    name: "appService",
-    className: "form-control",
-    required: true
-  }, services.map(s => /*#__PURE__*/React.createElement("option", {
-    key: s.id,
-    value: s.id
-  }, s.title)))), /*#__PURE__*/React.createElement("div", {
-    className: "form-group"
-  }, /*#__PURE__*/React.createElement("label", {
-    className: "form-label"
-  }, "Application / Token Reference Number"), /*#__PURE__*/React.createElement("input", {
-    type: "text",
-    name: "appRef",
-    className: "form-control",
-    placeholder: "e.g., TS2690847294",
-    required: true
-  })), /*#__PURE__*/React.createElement("div", {
-    className: "form-group"
-  }, /*#__PURE__*/React.createElement("label", {
-    className: "form-label"
-  }, "Date Applied"), /*#__PURE__*/React.createElement("input", {
-    type: "date",
-    name: "appDate",
-    className: "form-control"
-  })), /*#__PURE__*/React.createElement("div", {
-    className: "form-group"
-  }, /*#__PURE__*/React.createElement("label", {
-    className: "form-label"
-  }, "Current Stage"), /*#__PURE__*/React.createElement("select", {
-    name: "appStatus",
-    className: "form-control"
-  }, /*#__PURE__*/React.createElement("option", {
-    value: "DRAFT"
-  }, "Draft Preparation"), /*#__PURE__*/React.createElement("option", {
-    value: "SUBMITTED"
-  }, "Submitted Online"), /*#__PURE__*/React.createElement("option", {
-    value: "UNDER_SCRUTINY"
-  }, "Under Scrutiny / Review"), /*#__PURE__*/React.createElement("option", {
-    value: "FIELD_VERIFICATION"
-  }, "Police / Field Verification"), /*#__PURE__*/React.createElement("option", {
-    value: "APPROVED"
-  }, "Approved / Issued"))), /*#__PURE__*/React.createElement("button", {
-    type: "submit",
-    className: "btn-primary",
-    style: {
+      position: 'fixed',
+      top: 0,
+      right: 0,
+      bottom: 0,
       width: '100%',
-      padding: '12px'
+      maxWidth: '460px',
+      background: '#ffffff',
+      boxShadow: '-4px 0 24px rgba(0,0,0,0.15)',
+      zIndex: 1000,
+      display: 'flex',
+      flexDirection: 'column'
+    },
+    onClick: e => e.stopPropagation()
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      padding: '16px 20px',
+      borderBottom: '1px solid #e2e8f0',
+      display: 'flex',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      background: '#0f2744',
+      color: '#fff'
     }
-  }, "Add to Tracker"))))), toast && /*#__PURE__*/React.createElement("div", {
+  }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("h3", {
+    style: {
+      fontSize: '16px',
+      fontWeight: '800'
+    }
+  }, "\u2728 ", t('chatTitle')), /*#__PURE__*/React.createElement("p", {
+    style: {
+      fontSize: '11px',
+      color: '#94a3b8'
+    }
+  }, t('chatSubtitle'))), /*#__PURE__*/React.createElement("button", {
+    onClick: () => setIsAiOpen(false),
+    style: {
+      background: 'none',
+      border: 'none',
+      color: '#fff',
+      fontSize: '18px',
+      cursor: 'pointer'
+    }
+  }, "\u2715")), /*#__PURE__*/React.createElement("div", {
+    style: {
+      padding: '10px 14px',
+      background: '#f8fafc',
+      borderBottom: '1px solid #e2e8f0',
+      display: 'flex',
+      gap: '6px',
+      overflowX: 'auto'
+    }
+  }, [t('chatQuick1'), t('chatQuick2'), t('chatQuick3'), t('chatQuick4')].map((p, i) => /*#__PURE__*/React.createElement("button", {
+    key: i,
+    onClick: () => handleSendMessage(p),
+    style: {
+      whiteSpace: 'nowrap',
+      fontSize: '11px',
+      fontWeight: '600',
+      background: '#fff',
+      border: '1px solid #cbd5e1',
+      borderRadius: '999px',
+      padding: '4px 10px',
+      cursor: 'pointer'
+    }
+  }, p))), /*#__PURE__*/React.createElement("div", {
+    style: {
+      flex: 1,
+      overflowY: 'auto',
+      padding: '16px',
+      display: 'flex',
+      flexDirection: 'column',
+      gap: '14px'
+    }
+  }, chatMessages.map((msg, i) => /*#__PURE__*/React.createElement("div", {
+    key: i,
+    style: {
+      alignSelf: msg.role === 'user' ? 'flex-end' : 'flex-start',
+      maxWidth: '85%',
+      background: msg.role === 'user' ? '#0f2744' : '#f1f5f9',
+      color: msg.role === 'user' ? '#ffffff' : '#0f172a',
+      padding: '12px 16px',
+      borderRadius: msg.role === 'user' ? '14px 14px 2px 14px' : '14px 14px 14px 2px',
+      fontSize: '13px',
+      lineHeight: 1.6
+    }
+  }, /*#__PURE__*/React.createElement("p", {
+    style: {
+      whiteSpace: 'pre-line'
+    }
+  }, msg.text), msg.sources && msg.sources.length > 0 && /*#__PURE__*/React.createElement("div", {
+    style: {
+      marginTop: '8px',
+      paddingTop: '8px',
+      borderTop: '1px solid rgba(0,0,0,0.06)',
+      fontSize: '11px',
+      color: '#475569'
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontWeight: '700'
+    }
+  }, "Sources: "), msg.sources.map((s, idx) => /*#__PURE__*/React.createElement("span", {
+    key: idx,
+    style: {
+      marginRight: '6px'
+    }
+  }, "\u2022 ", s.authority || s.title))))), isChatLoading && /*#__PURE__*/React.createElement("div", {
+    style: {
+      alignSelf: 'flex-start',
+      background: '#f1f5f9',
+      padding: '10px 14px',
+      borderRadius: '12px',
+      fontSize: '12px',
+      color: '#64748b'
+    }
+  }, "Searching verified government records...")), /*#__PURE__*/React.createElement("div", {
+    style: {
+      padding: '12px 16px',
+      borderTop: '1px solid #e2e8f0',
+      display: 'flex',
+      gap: '8px'
+    }
+  }, /*#__PURE__*/React.createElement("input", {
+    type: "text",
+    className: "form-control",
+    placeholder: t('chatPlaceholder'),
+    value: chatInput,
+    onChange: e => setChatInput(e.target.value),
+    onKeyDown: e => {
+      if (e.key === 'Enter') handleSendMessage();
+    }
+  }), /*#__PURE__*/React.createElement("button", {
+    className: "btn-primary",
+    onClick: () => handleSendMessage(),
+    disabled: isChatLoading || !chatInput.trim()
+  }, t('chatSendBtn'))))), toast && /*#__PURE__*/React.createElement("div", {
     className: "toast-container"
   }, /*#__PURE__*/React.createElement("div", {
     className: "toast"
@@ -1869,14 +1914,14 @@ export function CivicApp() {
     className: "container footer-grid"
   }, /*#__PURE__*/React.createElement("div", {
     className: "footer-brand"
-  }, /*#__PURE__*/React.createElement("h4", null, "\uD83C\uDFDB\uFE0F CivicGuide AI"), /*#__PURE__*/React.createElement("p", {
+  }, /*#__PURE__*/React.createElement("h4", null, "\uD83C\uDFDB\uFE0F ", t('brandTitle'), " AI"), /*#__PURE__*/React.createElement("p", {
     style: {
       lineHeight: 1.6,
       maxWidth: '440px'
     }
-  }, "An authoritative, open citizen platform designed to demystify complex government documentation, statutory fee structures, and application procedures across Indian departments.")), /*#__PURE__*/React.createElement("div", {
+  }, t('footerDesc'))), /*#__PURE__*/React.createElement("div", {
     className: "footer-links"
-  }, /*#__PURE__*/React.createElement("h5", null, "Official Working Portals"), /*#__PURE__*/React.createElement("ul", null, /*#__PURE__*/React.createElement("li", null, /*#__PURE__*/React.createElement("a", {
+  }, /*#__PURE__*/React.createElement("h5", null, t('footerPortalsTitle')), /*#__PURE__*/React.createElement("ul", null, /*#__PURE__*/React.createElement("li", null, /*#__PURE__*/React.createElement("a", {
     href: "https://www.passportindia.gov.in",
     target: "_blank",
     rel: "noopener"
@@ -1898,7 +1943,7 @@ export function CivicApp() {
     rel: "noopener"
   }, "MeeSeva Telangana")))), /*#__PURE__*/React.createElement("div", {
     className: "footer-links"
-  }, /*#__PURE__*/React.createElement("h5", null, "Assurance"), /*#__PURE__*/React.createElement("ul", null, /*#__PURE__*/React.createElement("li", null, "Zero Broker Policy"), /*#__PURE__*/React.createElement("li", null, "100% Official Source Citation"), /*#__PURE__*/React.createElement("li", null, "Official Gazette Verification"), /*#__PURE__*/React.createElement("li", null, "Multi-language Support (EN, TE, HI)")))), /*#__PURE__*/React.createElement("div", {
+  }, /*#__PURE__*/React.createElement("h5", null, t('footerAssuranceTitle')), /*#__PURE__*/React.createElement("ul", null, /*#__PURE__*/React.createElement("li", null, t('assurance1')), /*#__PURE__*/React.createElement("li", null, t('assurance2')), /*#__PURE__*/React.createElement("li", null, t('assurance3')), /*#__PURE__*/React.createElement("li", null, t('assurance4'))))), /*#__PURE__*/React.createElement("div", {
     className: "container footer-bottom"
-  }, /*#__PURE__*/React.createElement("div", null, "\xA9 2026 CivicGuide AI. Government Information Assistant. Built for Indian Citizens."), /*#__PURE__*/React.createElement("div", null, "Strict Compliance: No legal advice \u2022 Non-government entity"))));
+  }, /*#__PURE__*/React.createElement("div", null, t('footerCopyright')), /*#__PURE__*/React.createElement("div", null, t('footerCompliance')))));
 }
